@@ -1,0 +1,5 @@
+version: "1"
+rules:
+  - base: main
+    upstream: https://github.com/MystenLabs/narwhal:main    
+    mergeMethod: hardreset
