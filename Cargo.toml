@@ -1,0 +1,15 @@
+[workspace]
+members = ["config", "consensus", "crypto", "dag", "executor", "examples", "network", "node", "primary", "test_utils", "types", "worker", "workspace-hack"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+
+[profile.bench-profiling]
+inherits = "release"
+# Important for performance/memory profiling
+debug = true
+
+[profile.bench]
+codegen-units = 1
+lto = true
