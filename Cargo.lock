@@ -4611,6 +4611,7 @@ dependencies = [
  "rand 0.7.3",
  "rustversion",
  "serde",
+ "serde_json",
  "serde_test",
  "thiserror",
  "tokio",
