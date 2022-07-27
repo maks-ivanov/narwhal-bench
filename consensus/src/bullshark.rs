@@ -18,6 +18,8 @@ use types::{Certificate, CertificateDigest, ConsensusStore, Round, SequenceNumbe
 #[path = "tests/bullshark_tests.rs"]
 pub mod bullshark_tests;
 
+/// Processes proposed certificates and mutates a passed ConsensusState 
+/// writes to the historical state of the DAG in local store
 pub struct Bullshark<PublicKey: VerifyingKey> {
     /// The committee information.
     pub committee: Committee<PublicKey>,
@@ -27,6 +29,10 @@ pub struct Bullshark<PublicKey: VerifyingKey> {
     pub gc_depth: Round,
 }
 
+/// Add a new certificate to the local storage and then get the
+/// certificate's digest of the leader and check it has not been processed
+/// check if leader of round-2 has f+1 support from children at round-1
+/// if so, commit the leader and all valid trailing leaders
 impl<PublicKey: VerifyingKey> ConsensusProtocol<PublicKey> for Bullshark<PublicKey> {
     fn process_certificate(
         &mut self,

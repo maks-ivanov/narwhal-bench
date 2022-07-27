@@ -49,6 +49,7 @@ pub type SerializedTransaction = Vec<u8>;
 pub type SerializedTransactionDigest = u64;
 
 #[async_trait]
+/// The execution state is used to process transactions which have been agreed on by consensus
 pub trait ExecutionState {
     /// The type of the transaction to process.
     type Transaction: DeserializeOwned + Send + Debug;

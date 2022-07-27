@@ -29,9 +29,8 @@ pub mod dag_tests;
 
 /// Dag represents the Direct Acyclic Graph that is constructed by the certificate of each round without any
 /// consensus running on top of it. This is a [`VerifyingKey`], [`Certificate`] and [`Round`]-aware
-///  variant of the Dag, with a secondary index to link a (pubkey, round) pair to the possible
+/// variant of the Dag, with a secondary index to link a (pubkey, round) pair to the possible
 /// certified collection by that authority at that round.
-///
 #[derive(Debug)]
 struct InnerDag<PublicKey: VerifyingKey> {
     /// Receives new certificates from the primary. The primary should send us new certificates only

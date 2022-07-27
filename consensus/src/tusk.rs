@@ -18,6 +18,9 @@ use types::{Certificate, CertificateDigest, ConsensusStore, Round, StoreResult};
 #[path = "tests/tusk_tests.rs"]
 pub mod tusk_tests;
 
+/// Implements the Tusk component of the Narwhal + Tusk consensus mechanism
+/// the job of Tusk is to take a given certificate and update the DAG accordingly
+/// this process is responsible for ordering the transactions accrued in the DAG
 pub struct Tusk<PublicKey: VerifyingKey> {
     /// The committee information.
     pub committee: Committee<PublicKey>,
