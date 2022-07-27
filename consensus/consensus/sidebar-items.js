@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Consensus",""],["ConsensusState","Consensus state is persisted for crash-recovery."]],"trait":[["ConsensusProtocol","Describe how to sequence input certificates."]],"type":[["Dag","The representation of the DAG in memory."]]};

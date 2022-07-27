@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Tusk","Implements the Tusk component of the Narwhal + Tusk consensus mechanism the job of Tusk is to take a given certificate and update the DAG accordingly this process is responsible for ordering the transactions accrued in the DAG"]]};
