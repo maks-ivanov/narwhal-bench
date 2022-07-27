@@ -95,9 +95,8 @@ where
         }
     }
 
-    pub fn deserialize(byte_vec: Vec<u8>) -> Self {
-        let new_transaction: TransactionRequest<TransactionVariant> =
-            serde_json::from_slice(&byte_vec[..]).unwrap();
+    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, serde_json::Error> {
+        let new_transaction = serde_json::from_slice(&byte_vec[..]);
         new_transaction
     }
 
@@ -229,7 +228,7 @@ pub mod test {
         let serialized = signed_transaction.serialize().unwrap();
         // check valid signature
         let _signed_transaction: TransactionRequest<PaymentRequest> =
-            TransactionRequest::<PaymentRequest>::deserialize(serialized);
+            TransactionRequest::<PaymentRequest>::deserialize(serialized).unwrap();
 
         // verify transactions
         let transaction_hash_0 = signed_transaction.get_transaction().hash();
