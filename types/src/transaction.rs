@@ -1,5 +1,5 @@
 //!
-//! the transaction class is responsible for parsing client interactions
+//! The transaction class is responsible for parsing client interactions
 //! each valid transaction corresponds to a unique state transition within
 //! the space of allowable blockchain transitions
 //!
@@ -13,6 +13,9 @@ type AssetId = u64;
 #[derive(Debug, BCSCryptoHash, CryptoHasher, Serialize, Deserialize)]
 pub struct CryptoMessage(pub String);
 
+/// A valid payment transaction causes a state transition inside of
+/// the BankController object, e.g. it creates a fund transfer from
+/// User A to User B provided User A has sufficient funds
 #[derive(BCSCryptoHash, Copy, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
 pub struct PaymentRequest {
     // storing from here is not redundant as from may not equal sender
@@ -59,6 +62,8 @@ pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
 }
 
+/// The TransactionRequest object is responsible for encoding
+/// a transaction payload and associated metadata
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TransactionRequest<TransactionVariant>
 where
@@ -113,6 +118,7 @@ pub mod test {
     const PRIMARY_ASSET_ID: u64 = 0;
 
     #[test]
+    // test that a signed payment transaction behaves as expected
     fn create_signed_payment_transaction() {
         let private_key = AccountPrivKey::generate_for_testing(0);
         let sender_pub_key = (&private_key).into();
@@ -139,6 +145,7 @@ pub mod test {
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
         );
+
         assert!(
             *signed_transaction.get_sender() == sender_pub_key,
             "transaction sender does not match transaction input"
