@@ -27,16 +27,22 @@ pub struct PaymentRequest {
     // it is necessary to pass a recent block hash to make sure that a transaction cannot
     // be duplicated, moreover it is used to gaurantee that a submitted transaction was
     // created within a well designated lookback
-    recent_block_hash: HashValue
+    recent_block_hash: HashValue,
 }
 impl PaymentRequest {
-    pub fn new(from: AccountPubKey, to: AccountPubKey, asset_id: AssetId, amount: u64, recent_block_hash: HashValue) -> Self {
+    pub fn new(
+        from: AccountPubKey,
+        to: AccountPubKey,
+        asset_id: AssetId,
+        amount: u64,
+        recent_block_hash: HashValue,
+    ) -> Self {
         PaymentRequest {
             from,
             to,
             asset_id,
             amount,
-            recent_block_hash
+            recent_block_hash,
         }
     }
 
@@ -67,7 +73,7 @@ pub enum TransactionVariant {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TransactionRequest<TransactionVariant>
 where
-    TransactionVariant:  Clone + CryptoHash + Debug,
+    TransactionVariant: Clone + CryptoHash + Debug + Serialize,
 {
     transaction: TransactionVariant,
     sender: AccountPubKey,
@@ -75,7 +81,7 @@ where
 }
 impl<TransactionVariant> TransactionRequest<TransactionVariant>
 where
-    TransactionVariant: Clone + Copy + CryptoHash + Debug,
+    TransactionVariant: Clone + Copy + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
 {
     pub fn new(
         transaction: TransactionVariant,
@@ -87,6 +93,12 @@ where
             sender,
             transaction_signature,
         }
+    }
+
+    pub fn deserialize(byte_vec: Vec<u8>) -> Self {
+        let new_transaction: TransactionRequest<TransactionVariant> =
+            serde_json::from_slice(&byte_vec[..]).unwrap();
+        new_transaction
     }
 
     pub fn get_transaction(&self) -> &TransactionVariant {
@@ -106,8 +118,20 @@ where
         self.transaction_signature
             .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
     }
-}
 
+    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&self)
+    }
+}
+pub fn deserialize<
+    TransactionVariant: Clone + Copy + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
+>(
+    byte_vec: Vec<u8>,
+) -> TransactionRequest<TransactionVariant> {
+    let transaction: TransactionRequest<TransactionVariant> =
+        serde_json::from_slice(&byte_vec[..]).unwrap();
+    transaction
+}
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -126,17 +150,28 @@ pub mod test {
         let receiver_private_key = AccountPrivKey::generate_for_testing(1);
         let receiver_pub_key = (&receiver_private_key).into();
         let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-        let transaction = PaymentRequest::new(sender_pub_key, receiver_pub_key, PRIMARY_ASSET_ID, 10, dummy_recent_blockhash);
+        let transaction = PaymentRequest::new(
+            sender_pub_key,
+            receiver_pub_key,
+            PRIMARY_ASSET_ID,
+            10,
+            dummy_recent_blockhash,
+        );
 
         let transaction_hash = transaction.hash();
         let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-        let signed_transaction =
-            TransactionRequest::<PaymentRequest>::new(transaction, sender_pub_key, signed_hash.clone());
+        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
+            transaction,
+            sender_pub_key,
+            signed_hash.clone(),
+        );
 
         // perform transaction checks
 
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
+
+        // check valid signature
 
         // verify deterministic hashing
         let transaction_hash_0 = transaction.hash();
@@ -169,6 +204,77 @@ pub mod test {
         );
         assert!(
             *signed_transaction.get_transaction().get_to() == receiver_pub_key,
+            "transaction to does not match transction input"
+        );
+    }
+
+    #[test]
+    fn test_serialize_deserialize() {
+        let private_key = AccountPrivKey::generate_for_testing(0);
+        let sender_pub_key = (&private_key).into();
+
+        let receiver_private_key = AccountPrivKey::generate_for_testing(1);
+        let receiver_pub_key = (&receiver_private_key).into();
+        let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
+        let transaction = PaymentRequest::new(
+            sender_pub_key,
+            receiver_pub_key,
+            PRIMARY_ASSET_ID,
+            10,
+            dummy_recent_blockhash,
+        );
+
+        let transaction_hash = transaction.hash();
+        let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
+        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
+            transaction,
+            sender_pub_key,
+            signed_hash.clone(),
+        );
+
+        // perform transaction checks
+
+        let serialized = signed_transaction.serialize().unwrap();
+        // check valid signature
+        let _signed_transaction: TransactionRequest<PaymentRequest> =
+            TransactionRequest::<PaymentRequest>::deserialize(serialized);
+
+        // verify transactions
+        let transaction_hash_0 = signed_transaction.get_transaction().hash();
+        let transaction_hash_1 = _signed_transaction.get_transaction().hash();
+        assert!(
+            transaction_hash_0 == transaction_hash_1,
+            "hashes appears to have violated determinism"
+        );
+
+        assert!(
+            *signed_transaction.get_sender() == *_signed_transaction.get_sender(),
+            "transaction sender does not match transaction input"
+        );
+        assert!(
+            signed_transaction.get_transaction_signature().clone()
+                == _signed_transaction.get_transaction_signature().clone(),
+            "transaction sender does not match transaction input"
+        );
+
+        assert!(
+            signed_transaction.get_transaction().get_amount()
+                == _signed_transaction.get_transaction().get_amount(),
+            "transaction amount does not match transaction input"
+        );
+        assert!(
+            signed_transaction.get_transaction().get_asset_id()
+                == _signed_transaction.get_transaction().get_asset_id(),
+            "transaction asset id does not match transaction input"
+        );
+        assert!(
+            *signed_transaction.get_transaction().get_from()
+                == *_signed_transaction.get_transaction().get_from(),
+            "transaction from does not match transction input"
+        );
+        assert!(
+            *signed_transaction.get_transaction().get_to()
+                == *_signed_transaction.get_transaction().get_to(),
             "transaction to does not match transction input"
         );
     }
