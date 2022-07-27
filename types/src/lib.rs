@@ -5,6 +5,7 @@
 pub mod error;
 
 mod account;
+pub use account::*;
 
 mod consensus;
 pub use consensus::*;
@@ -19,3 +20,4 @@ mod worker;
 pub use worker::*;
 
 mod transaction;
+pub use transaction::*;
