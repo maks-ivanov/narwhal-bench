@@ -123,15 +123,7 @@ where
         serde_json::to_vec(&self)
     }
 }
-pub fn deserialize<
-    TransactionVariant: Clone + Copy + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
->(
-    byte_vec: Vec<u8>,
-) -> TransactionRequest<TransactionVariant> {
-    let transaction: TransactionRequest<TransactionVariant> =
-        serde_json::from_slice(&byte_vec[..]).unwrap();
-    transaction
-}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
