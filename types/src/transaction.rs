@@ -123,8 +123,8 @@ where
     }
 }
 
-#[cfg(test)]
-pub mod test {
+// #[cfg(test)]
+pub mod transaction_tests {
     use super::*;
 
     use crate::account::AccountPrivKey;
@@ -132,9 +132,7 @@ pub mod test {
 
     const PRIMARY_ASSET_ID: u64 = 0;
 
-    #[test]
-    // test that a signed payment transaction behaves as expected
-    fn create_signed_payment_transaction() {
+    pub fn generate_signed_payment_transaction() -> TransactionRequest<PaymentRequest> {
         let private_key = AccountPrivKey::generate_for_testing(0);
         let sender_pub_key = (&private_key).into();
 
@@ -156,13 +154,39 @@ pub mod test {
             sender_pub_key,
             signed_hash.clone(),
         );
+        signed_transaction.into()
+    }
 
+    #[test]
+    // test that a signed payment transaction behaves as expected
+    fn create_signed_payment_transaction() {
+
+        let private_key = AccountPrivKey::generate_for_testing(0);
+        let sender_pub_key = (&private_key).into();
+
+        let receiver_private_key = AccountPrivKey::generate_for_testing(1);
+        let receiver_pub_key = (&receiver_private_key).into();
+        let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
+        let transaction = PaymentRequest::new(
+            sender_pub_key,
+            receiver_pub_key,
+            PRIMARY_ASSET_ID,
+            10,
+            dummy_recent_blockhash,
+        );
+
+        let transaction_hash = transaction.hash();
+        let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
+        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
+            transaction,
+            sender_pub_key,
+            signed_hash.clone(),
+        );
+        
         // perform transaction checks
 
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
-
-        // check valid signature
 
         // verify deterministic hashing
         let transaction_hash_0 = transaction.hash();
@@ -201,71 +225,51 @@ pub mod test {
 
     #[test]
     fn test_serialize_deserialize() {
-        let private_key = AccountPrivKey::generate_for_testing(0);
-        let sender_pub_key = (&private_key).into();
-
-        let receiver_private_key = AccountPrivKey::generate_for_testing(1);
-        let receiver_pub_key = (&receiver_private_key).into();
-        let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-        let transaction = PaymentRequest::new(
-            sender_pub_key,
-            receiver_pub_key,
-            PRIMARY_ASSET_ID,
-            10,
-            dummy_recent_blockhash,
-        );
-
-        let transaction_hash = transaction.hash();
-        let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
-            transaction,
-            sender_pub_key,
-            signed_hash.clone(),
-        );
+        let signed_transaction = generate_signed_payment_transaction();
 
         // perform transaction checks
 
         let serialized = signed_transaction.serialize().unwrap();
         // check valid signature
-        let _signed_transaction: TransactionRequest<PaymentRequest> =
+        let signed_transaction_deserialized: TransactionRequest<PaymentRequest> =
             TransactionRequest::<PaymentRequest>::deserialize(serialized).unwrap();
 
         // verify transactions
         let transaction_hash_0 = signed_transaction.get_transaction().hash();
-        let transaction_hash_1 = _signed_transaction.get_transaction().hash();
+        let transaction_hash_1 = signed_transaction_deserialized.get_transaction().hash();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
         );
 
         assert!(
-            *signed_transaction.get_sender() == *_signed_transaction.get_sender(),
+            *signed_transaction.get_sender() == *signed_transaction_deserialized.get_sender(),
             "transaction sender does not match transaction input"
         );
         assert!(
             signed_transaction.get_transaction_signature().clone()
-                == _signed_transaction.get_transaction_signature().clone(),
+                == signed_transaction_deserialized.get_transaction_signature().clone(),
             "transaction sender does not match transaction input"
         );
 
         assert!(
             signed_transaction.get_transaction().get_amount()
-                == _signed_transaction.get_transaction().get_amount(),
+                == signed_transaction_deserialized.get_transaction().get_amount(),
             "transaction amount does not match transaction input"
         );
         assert!(
             signed_transaction.get_transaction().get_asset_id()
-                == _signed_transaction.get_transaction().get_asset_id(),
+                == signed_transaction_deserialized.get_transaction().get_asset_id(),
             "transaction asset id does not match transaction input"
         );
         assert!(
             *signed_transaction.get_transaction().get_from()
-                == *_signed_transaction.get_transaction().get_from(),
+                == *signed_transaction_deserialized.get_transaction().get_from(),
             "transaction from does not match transction input"
         );
         assert!(
             *signed_transaction.get_transaction().get_to()
-                == *_signed_transaction.get_transaction().get_to(),
+                == *signed_transaction_deserialized.get_transaction().get_to(),
             "transaction to does not match transction input"
         );
     }
