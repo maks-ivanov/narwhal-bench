@@ -85,6 +85,42 @@ pub fn test_u64_certificates(
         .collect()
 }
 
+
+/// Create a number of test certificates containing transactions of type u64.
+pub fn test_transaction_certificates(
+    certificates: usize,
+    batches_per_certificate: usize,
+    transactions_per_batch: usize,
+) -> Vec<(
+    Certificate<Ed25519PublicKey>,
+    Vec<(BatchDigest, SerializedBatchMessage)>,
+)> {
+    let mut rng = StdRng::from_seed([0; 32]);
+    (0..certificates)
+        .map(|_| {
+            let batches: Vec<_> = (0..batches_per_certificate)
+                .map(|_| {
+                    test_batch(
+                        (0..transactions_per_batch)
+                            .map(|_| generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ rng.next_u64()))
+                            .collect(),
+                    )
+                })
+                .collect();
+
+            let payload: BTreeMap<_, _> = batches
+                .iter()
+                .enumerate()
+                .map(|(i, (digest, _))| (*digest, /* worker_id */ i as WorkerId))
+                .collect();
+
+            let certificate = test_certificate(payload);
+
+            (certificate, batches)
+        })
+        .collect()
+}
+
 pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
     let private_key = AccountPrivKey::generate_for_testing(0);
     let sender_pub_key = (&private_key).into();
