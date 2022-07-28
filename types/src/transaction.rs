@@ -113,37 +113,6 @@ impl From<PaymentRequest> for TransactionVariant {
     }
 }
 
-impl TransactionVariant {
-    pub fn get_from(&self) -> &AccountPubKey {
-        match self {
-            TransactionVariant::PaymentTransaction(r) => r.get_from(),
-        }
-    }
-
-    pub fn get_to(&self) -> &AccountPubKey {
-        match self {
-            TransactionVariant::PaymentTransaction(r) => r.get_to(),
-        }
-    }
-
-    pub fn get_asset_id(&self) -> AssetId {
-        match self {
-            TransactionVariant::PaymentTransaction(r) => r.get_asset_id(),
-        }
-    }
-
-    pub fn get_amount(&self) -> u64 {
-        match self {
-            TransactionVariant::PaymentTransaction(r) => r.get_amount(),
-        }
-    }
-
-    pub fn digest(&self) -> TransactionDigest {
-        match self {
-            TransactionVariant::PaymentTransaction(r) => r.digest(),
-        }
-    }
-}
 
 /// The TransactionRequest object is responsible for encoding
 /// a transaction payload and associated metadata
@@ -283,20 +252,25 @@ pub mod transaction_tests {
             "transaction sender does not match transaction input"
         );
 
+        assert!(matches!(signed_transaction.get_transaction_payload(), TransactionVariant::PaymentTransaction(_)));
+        let signed_transaction_payload_matched = match signed_transaction.get_transaction_payload() {
+            TransactionVariant::PaymentTransaction(r) => r
+        };
+
         assert!(
-            signed_transaction.get_transaction_payload().get_amount() == 10,
+            signed_transaction_payload_matched.get_amount() == 10,
             "transaction amount does not match transaction input"
         );
         assert!(
-            signed_transaction.get_transaction_payload().get_asset_id() == PRIMARY_ASSET_ID,
+            signed_transaction_payload_matched.get_asset_id() == PRIMARY_ASSET_ID,
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction.get_transaction_payload().get_from() == sender_pub_key,
+            *signed_transaction_payload_matched.get_from() == sender_pub_key,
             "transaction from does not match transction input"
         );
         assert!(
-            *signed_transaction.get_transaction_payload().get_to() == receiver_pub_key,
+            *signed_transaction_payload_matched.get_to() == receiver_pub_key,
             "transaction to does not match transction input"
         );
     }
@@ -312,14 +286,6 @@ pub mod transaction_tests {
         let signed_transaction_deserialized: TransactionRequest =
             TransactionRequest::deserialize(serialized).unwrap();
 
-        // verify transactions
-        let transaction_hash_0 = signed_transaction.get_transaction_payload().digest();
-        let transaction_hash_1 = signed_transaction_deserialized.get_transaction_payload().digest();
-        assert!(
-            transaction_hash_0 == transaction_hash_1,
-            "hashes appears to have violated determinism"
-        );
-
         assert!(
             *signed_transaction.get_sender() == *signed_transaction_deserialized.get_sender(),
             "transaction sender does not match transaction input"
@@ -330,24 +296,43 @@ pub mod transaction_tests {
             "transaction sender does not match transaction input"
         );
 
+
+        assert!(matches!(signed_transaction_deserialized.get_transaction_payload(), TransactionVariant::PaymentTransaction(_)));
+        let matched_transaction_payload_deserialized = match signed_transaction_deserialized.get_transaction_payload() {
+            TransactionVariant::PaymentTransaction(r) => r
+        };
+
+        let matched_transaction_payload = match signed_transaction.get_transaction_payload() {
+            TransactionVariant::PaymentTransaction(r) => r
+        };
+
+        // verify transactions
+        let transaction_hash_0 = matched_transaction_payload.digest();
+        let transaction_hash_1 = matched_transaction_payload_deserialized.digest();
         assert!(
-            signed_transaction.get_transaction_payload().get_amount()
-                == signed_transaction_deserialized.get_transaction_payload().get_amount(),
+            transaction_hash_0 == transaction_hash_1,
+            "hashes appears to have violated determinism"
+        );
+
+
+        assert!(
+            matched_transaction_payload.get_amount()
+                == matched_transaction_payload_deserialized.get_amount(),
             "transaction amount does not match transaction input"
         );
         assert!(
-            signed_transaction.get_transaction_payload().get_asset_id()
-                == signed_transaction_deserialized.get_transaction_payload().get_asset_id(),
+            matched_transaction_payload.get_asset_id()
+                == matched_transaction_payload_deserialized.get_asset_id(),
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction.get_transaction_payload().get_from()
-                == *signed_transaction_deserialized.get_transaction_payload().get_from(),
+            *matched_transaction_payload.get_from()
+                == *matched_transaction_payload_deserialized.get_from(),
             "transaction from does not match transction input"
         );
         assert!(
-            *signed_transaction.get_transaction_payload().get_to()
-                == *signed_transaction_deserialized.get_transaction_payload().get_to(),
+            *matched_transaction_payload.get_to()
+                == *matched_transaction_payload_deserialized.get_to(),
             "transaction to does not match transction input"
         );
     }

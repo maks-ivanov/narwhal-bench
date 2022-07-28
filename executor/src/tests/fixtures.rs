@@ -11,6 +11,7 @@ use store::{
     rocks::{open_cf, DBMap},
     Store,
 };
+use crypto::Hash;
 use crypto::traits::{KeyPair, Signer};
 use gdex_crypto::hash::TestOnlyHash;
 use types::{serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant, AccountKeyPair};
@@ -95,17 +96,17 @@ pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> Transa
     let kp_sender = keys([0; 32]).pop().unwrap();
     let kp_receiver = keys([1; 32]).pop().unwrap();
     let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).test_only_hash();
-    let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+    let transaction = PaymentRequest::new(
         kp_sender.public().clone(),
         kp_receiver.public().clone(),
         asset_id,
         amount,
         dummy_recent_blockhash,
-    ));
+    );
     let transaction_hash = transaction.digest();
     let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
     TransactionRequest::new(
-        transaction,
+        TransactionVariant::PaymentTransaction(transaction),
         kp_sender.public().clone(),
         signed_hash,
     )
