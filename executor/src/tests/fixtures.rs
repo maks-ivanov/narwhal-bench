@@ -12,8 +12,10 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, Batch, BatchDigest, Certificate, Header, SerializedBatchMessage,
+    serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant
 };
+use gdex_crypto::{hash::CryptoHash, SigningKey, Uniform};
+
 use worker::WorkerMessage;
 
 /// A test batch containing specific transactions.
@@ -81,4 +83,28 @@ pub fn test_u64_certificates(
             (certificate, batches)
         })
         .collect()
+}
+
+pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
+    let private_key = AccountPrivKey::generate_for_testing(0);
+    let sender_pub_key = (&private_key).into();
+
+    let receiver_private_key = AccountPrivKey::generate_for_testing(1);
+    let receiver_pub_key = (&receiver_private_key).into();
+    let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
+    let transaction = PaymentRequest::new(
+        sender_pub_key,
+        receiver_pub_key,
+        asset_id,
+        amount,
+        dummy_recent_blockhash,
+    );
+
+    let transaction_hash = transaction.hash();
+    let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
+    TransactionRequest::<PaymentRequest>::new(
+        transaction,
+        sender_pub_key,
+        signed_hash,
+    )
 }
