@@ -64,7 +64,7 @@ impl ExecutionStateError for AdvancedTestStateError {
 }
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
-    type Transaction = TransactionRequest<TransactionVariant>;
+    type Transaction = TransactionRequest;
     type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
@@ -74,7 +74,7 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        match request.get_transaction() {
+        match request.get_transaction_payload() {
             TransactionVariant::PaymentTransaction(_payment) => {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
@@ -159,7 +159,7 @@ async fn execute_advanced_transactions() {
     let serialized = &transactions.clone()[0];
 
     // verify we can deserialize objects in the batch
-    let _transaction: TransactionRequest<TransactionVariant> =  bincode::deserialize(&serialized).unwrap();
+    let _transaction: TransactionRequest =  bincode::deserialize(&serialized).unwrap();
 
 
     store.write(digest, batch).await;

@@ -68,28 +68,56 @@ pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
 }
 
+impl From<PaymentRequest> for TransactionVariant {
+    fn from(payment_request: PaymentRequest) -> Self {
+        Self::PaymentTransaction(payment_request)
+    }
+}
+
+impl TransactionVariant {
+    pub fn get_from(&self) -> &AccountPubKey {
+        match self {
+            TransactionVariant::PaymentTransaction(r) => r.get_from(),
+        }
+    }
+
+    pub fn get_to(&self) -> &AccountPubKey {
+        match self {
+            TransactionVariant::PaymentTransaction(r) => r.get_to(),
+        }
+    }
+
+    pub fn get_asset_id(&self) -> AssetId {
+        match self {
+            TransactionVariant::PaymentTransaction(r) => r.get_asset_id(),
+        }
+    }
+
+    pub fn get_amount(&self) -> u64 {
+        match self {
+            TransactionVariant::PaymentTransaction(r) => r.get_amount(),
+        }
+    }
+}
+
 /// The TransactionRequest object is responsible for encoding
 /// a transaction payload and associated metadata
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TransactionRequest<TransactionVariant>
-where
-    TransactionVariant: Clone + CryptoHash + Debug + Serialize,
+pub struct TransactionRequest
 {
-    transaction: TransactionVariant,
+    transaction_payload: TransactionVariant,
     sender: AccountPubKey,
     transaction_signature: AccountSignature,
 }
-impl<TransactionVariant> TransactionRequest<TransactionVariant>
-where
-    TransactionVariant: Clone  + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
+impl TransactionRequest
 {
     pub fn new(
-        transaction: TransactionVariant,
+        transaction_payload: TransactionVariant,
         sender: AccountPubKey,
         transaction_signature: AccountSignature,
     ) -> Self {
         TransactionRequest {
-            transaction,
+            transaction_payload: transaction_payload,
             sender,
             transaction_signature,
         }
@@ -99,8 +127,8 @@ where
         bincode::deserialize(&byte_vec[..])
     }
 
-    pub fn get_transaction(&self) -> &TransactionVariant {
-        &self.transaction
+    pub fn get_transaction_payload(&self) -> &TransactionVariant {
+        &self.transaction_payload
     }
 
     pub fn get_sender(&self) -> &AccountPubKey {
@@ -112,7 +140,7 @@ where
     }
 
     pub fn verify_transaction(&self) -> Result<(), gdex_crypto::error::Error> {
-        let transaction_hash = self.transaction.hash();
+        let transaction_hash = self.transaction_payload.hash();
         self.transaction_signature
             .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
     }
@@ -128,10 +156,11 @@ pub mod transaction_tests {
 
     use crate::account::AccountPrivKey;
     use gdex_crypto::{SigningKey, Uniform};
+    use crate::TransactionVariant::PaymentTransaction;
 
     const PRIMARY_ASSET_ID: u64 = 0;
 
-    pub fn generate_signed_payment_transaction() -> TransactionRequest<PaymentRequest> {
+    pub fn generate_signed_payment_transaction() -> TransactionRequest {
         let private_key = AccountPrivKey::generate_for_testing(0);
         let sender_pub_key = (&private_key).into();
 
@@ -148,8 +177,8 @@ pub mod transaction_tests {
 
         let transaction_hash = transaction.hash();
         let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-        TransactionRequest::<PaymentRequest>::new(
-            transaction,
+        TransactionRequest::new(
+            PaymentTransaction(transaction),
             sender_pub_key,
             signed_hash,
         )
@@ -175,8 +204,8 @@ pub mod transaction_tests {
 
         let transaction_hash = transaction.hash();
         let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
-            transaction.clone(),
+        let signed_transaction = TransactionRequest::new(
+            PaymentTransaction(transaction.clone()),
             sender_pub_key,
             signed_hash.clone(),
         );
@@ -204,19 +233,19 @@ pub mod transaction_tests {
         );
 
         assert!(
-            signed_transaction.get_transaction().get_amount() == 10,
+            signed_transaction.get_transaction_payload().get_amount() == 10,
             "transaction amount does not match transaction input"
         );
         assert!(
-            signed_transaction.get_transaction().get_asset_id() == PRIMARY_ASSET_ID,
+            signed_transaction.get_transaction_payload().get_asset_id() == PRIMARY_ASSET_ID,
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction.get_transaction().get_from() == sender_pub_key,
+            *signed_transaction.get_transaction_payload().get_from() == sender_pub_key,
             "transaction from does not match transction input"
         );
         assert!(
-            *signed_transaction.get_transaction().get_to() == receiver_pub_key,
+            *signed_transaction.get_transaction_payload().get_to() == receiver_pub_key,
             "transaction to does not match transction input"
         );
     }
@@ -229,12 +258,12 @@ pub mod transaction_tests {
 
         let serialized = signed_transaction.serialize().unwrap();
         // check valid signature
-        let signed_transaction_deserialized: TransactionRequest<PaymentRequest> =
-            TransactionRequest::<PaymentRequest>::deserialize(serialized).unwrap();
+        let signed_transaction_deserialized: TransactionRequest =
+            TransactionRequest::deserialize(serialized).unwrap();
 
         // verify transactions
-        let transaction_hash_0 = signed_transaction.get_transaction().hash();
-        let transaction_hash_1 = signed_transaction_deserialized.get_transaction().hash();
+        let transaction_hash_0 = signed_transaction.get_transaction_payload().hash();
+        let transaction_hash_1 = signed_transaction_deserialized.get_transaction_payload().hash();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
@@ -251,23 +280,23 @@ pub mod transaction_tests {
         );
 
         assert!(
-            signed_transaction.get_transaction().get_amount()
-                == signed_transaction_deserialized.get_transaction().get_amount(),
+            signed_transaction.get_transaction_payload().get_amount()
+                == signed_transaction_deserialized.get_transaction_payload().get_amount(),
             "transaction amount does not match transaction input"
         );
         assert!(
-            signed_transaction.get_transaction().get_asset_id()
-                == signed_transaction_deserialized.get_transaction().get_asset_id(),
+            signed_transaction.get_transaction_payload().get_asset_id()
+                == signed_transaction_deserialized.get_transaction_payload().get_asset_id(),
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction.get_transaction().get_from()
-                == *signed_transaction_deserialized.get_transaction().get_from(),
+            *signed_transaction.get_transaction_payload().get_from()
+                == *signed_transaction_deserialized.get_transaction_payload().get_from(),
             "transaction from does not match transction input"
         );
         assert!(
-            *signed_transaction.get_transaction().get_to()
-                == *signed_transaction_deserialized.get_transaction().get_to(),
+            *signed_transaction.get_transaction_payload().get_to()
+                == *signed_transaction_deserialized.get_transaction_payload().get_to(),
             "transaction to does not match transction input"
         );
     }

@@ -44,7 +44,7 @@ pub struct FullExecutionState;
 
 #[async_trait]
 impl ExecutionState for FullExecutionState {
-    type Transaction = TransactionRequest<TransactionVariant>;
+    type Transaction = TransactionRequest;
     type Error = SimpleExecutionError;
     type Outcome = Vec<u8>;
 

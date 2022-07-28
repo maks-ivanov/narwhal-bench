@@ -11,10 +11,9 @@ use store::{
     rocks::{open_cf, DBMap},
     Store,
 };
-use types::{
-    serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest
-};
+use types::{serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant};
 use gdex_crypto::{hash::CryptoHash, SigningKey, Uniform};
+use types::TransactionVariant::PaymentTransaction;
 
 use worker::WorkerMessage;
 
@@ -85,7 +84,7 @@ pub fn test_u64_certificates(
         .collect()
 }
 
-pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
+pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest {
     let private_key = AccountPrivKey::generate_for_testing(0);
     let sender_pub_key = (&private_key).into();
 
@@ -102,8 +101,8 @@ pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> Transa
 
     let transaction_hash = transaction.hash();
     let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-    TransactionRequest::<PaymentRequest>::new(
-        transaction,
+    TransactionRequest::new(
+        TransactionVariant::PaymentTransaction(transaction),
         sender_pub_key,
         signed_hash,
     )
