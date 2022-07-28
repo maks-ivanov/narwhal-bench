@@ -12,7 +12,7 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant
+    serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest
 };
 use gdex_crypto::{hash::CryptoHash, SigningKey, Uniform};
 

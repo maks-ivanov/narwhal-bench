@@ -20,7 +20,7 @@ use crypto::ed25519::Ed25519PublicKey;
 use std::sync::Arc;
 use test_utils::committee;
 use tokio::sync::mpsc::channel;
-use types::{Batch, SequenceNumber, TransactionRequest, TransactionVariant, PaymentRequest};
+use types::{Batch, SequenceNumber, TransactionRequest, TransactionVariant};
 use worker::WorkerMessage;
 
 /// A more advanced execution state for testing.
@@ -41,7 +41,7 @@ impl Default for AdvancedTestState {
 }
 
 #[derive(Debug, Error)]
-pub enum TestStateError {
+pub enum AdvancedTestStateError {
     #[error("Something went wrong in the authority")]
     ServerError,
 
@@ -50,7 +50,7 @@ pub enum TestStateError {
 }
 
 #[async_trait]
-impl ExecutionStateError for TestStateError {
+impl ExecutionStateError for AdvancedTestStateError {
     fn node_error(&self) -> bool {
         match self {
             Self::ServerError => true,
@@ -65,7 +65,7 @@ impl ExecutionStateError for TestStateError {
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
     type Transaction = TransactionRequest<TransactionVariant>;
-    type Error = TestStateError;
+    type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
     async fn handle_consensus_transaction<PublicKey: VerifyingKey>(
@@ -74,10 +74,8 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        println!("processing a request");
         match request.get_transaction() {
             TransactionVariant::PaymentTransaction(_payment) => {
-                println!("processign a transaction...");
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
@@ -86,17 +84,6 @@ impl ExecutionState for AdvancedTestState {
                 return Err(Self::Error::ClientError)
             }
         }
-        
-        // if transaction == MALFORMED_TRANSACTION {
-        //     Err(Self::Error::ClientError)
-        // } else if transaction == KILLER_TRANSACTION {
-        //     Err(Self::Error::ServerError)
-        // } else {
-        //     self.store
-        //         .write(Self::INDICES_ADDRESS, execution_indices)
-        //         .await;
-        //     Ok((Vec::default(), None))
-        // }
         Ok((Vec::default(), None))
     }
 
@@ -140,7 +127,6 @@ impl AdvancedTestState {
 
 #[tokio::test]
 async fn execute_advanced_transactions() {
-    println!("in execute_advanced_transactions");
     let (tx_executor, rx_executor) = channel(10);
     let (tx_output, mut rx_output) = channel(10);
 
@@ -163,7 +149,6 @@ async fn execute_advanced_transactions() {
     let tx0 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 10);
     let tx1 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 100);
     let (digest, batch) = test_batch(vec![tx0, tx1]);
-    println!("batch=!{:?}", batch);
 
     // Deserialize the consensus workers' batch message to retrieve a list of transactions.
     let transactions = match bincode::deserialize(&batch).unwrap() {
@@ -171,52 +156,45 @@ async fn execute_advanced_transactions() {
         _ => panic!("Error has occurred"),
     };
 
-    println!("transactions=!{:?}", transactions);
-    println!("transactions.len={:?}", transactions.len());
-
     let serialized = &transactions.clone()[0];
 
-    println!("serialized txn={:?}", serialized);
-    println!("serialized txn.len={:?}", serialized.len());
-    // println!("tx0.hash()=", tx0.hash());
-    let transaction: TransactionRequest<TransactionVariant> =  bincode::deserialize(&serialized).unwrap();
-    println!("transaction after desiralizing={:?}", transaction);
+    // verify we can deserialize objects in the batch
+    let _transaction: TransactionRequest<TransactionVariant> =  bincode::deserialize(&serialized).unwrap();
 
 
-    // store.write(digest, batch).await;
+    store.write(digest, batch).await;
 
-    // let payload = [(digest, 0)].iter().cloned().collect();
-    // let certificate = test_certificate(payload);
+    let payload = [(digest, 0)].iter().cloned().collect();
+    let certificate = test_certificate(payload);
 
-    // let message = ConsensusOutput {
-    //     certificate,
-    //     consensus_index: SequenceNumber::default(),
-    // };
-    // tx_executor.send(message).await.unwrap();
+    let message = ConsensusOutput {
+        certificate,
+        consensus_index: SequenceNumber::default(),
+    };
+    tx_executor.send(message).await.unwrap();
 
-    // // Feed two certificates with good transactions to the executor.
-    // let certificates = test_u64_certificates(
-    //     /* certificates */ 2, /* batches_per_certificate */ 2,
-    //     /* transactions_per_batch */ 2,
-    // );
-    // for (certificate, batches) in certificates {
-    //     for (digest, batch) in batches {
-    //         store.write(digest, batch).await;
-    //     }
-    //     let message = ConsensusOutput {
-    //         certificate,
-    //         consensus_index: SequenceNumber::default(),
-    //     };
-    //     tx_executor.send(message).await.unwrap();
-    // }
+    // Feed two certificates with good transactions to the executor.
+    let certificates = test_u64_certificates(
+        /* certificates */ 2, /* batches_per_certificate */ 2,
+        /* transactions_per_batch */ 2,
+    );
+    for (certificate, batches) in certificates {
+        for (digest, batch) in batches {
+            store.write(digest, batch).await;
+        }
+        let message = ConsensusOutput {
+            certificate,
+            consensus_index: SequenceNumber::default(),
+        };
+        tx_executor.send(message).await.unwrap();
+    }
 
-    // // Ensure the execution state is updated accordingly.
-    // let q = rx_output.recv().await;
-    // println!("rx_output={:?}", q.unwrap());
-    // let expected = ExecutionIndices {
-    //     next_certificate_index: 3,
-    //     next_batch_index: 0,
-    //     next_transaction_index: 0,
-    // };
-    // assert_eq!(execution_state.get_execution_indices().await, expected);
+    // Ensure the execution state is updated accordingly.
+    let q = rx_output.recv().await;
+    let expected = ExecutionIndices {
+        next_certificate_index: 3,
+        next_batch_index: 0,
+        next_transaction_index: 0,
+    };
+    assert_eq!(execution_state.get_execution_indices().await, expected);
 }

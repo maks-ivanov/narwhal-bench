@@ -7,6 +7,10 @@ mod state;
 mod subscriber;
 
 #[cfg(test)]
+#[path = "tests/advanced_execution_state.rs"]
+mod advanced_execution_state;
+
+#[cfg(test)]
 #[path = "tests/fixtures.rs"]
 mod fixtures;
 

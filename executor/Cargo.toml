@@ -20,6 +20,7 @@ tracing = "0.1.35"
 config = { path = "../config" }
 consensus = { path = "../consensus" }
 crypto = { path = "../crypto" }
+gdex-crypto = { path = "../gdex-crypto/crypto" }
 primary = { path = "../primary" }
 tonic = "0.7.2"
 multiaddr = "0.14.0"
