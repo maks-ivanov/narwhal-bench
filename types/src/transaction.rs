@@ -95,8 +95,8 @@ where
         }
     }
 
-    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, serde_json::Error> {
-        let new_transaction = serde_json::from_slice(&byte_vec[..]);
+    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, Box<bincode::ErrorKind>> {
+        let new_transaction = bincode::deserialize(&byte_vec[..]);
         new_transaction
     }
 
@@ -118,8 +118,8 @@ where
             .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
-        serde_json::to_vec(&self)
+    pub fn serialize(&self) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
+        bincode::serialize(&self)
     }
 }
 
