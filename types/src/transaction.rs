@@ -96,8 +96,7 @@ where
     }
 
     pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, Box<bincode::ErrorKind>> {
-        let new_transaction = bincode::deserialize(&byte_vec[..]);
-        new_transaction
+        bincode::deserialize(&byte_vec[..])
     }
 
     pub fn get_transaction(&self) -> &TransactionVariant {
@@ -149,12 +148,11 @@ pub mod transaction_tests {
 
         let transaction_hash = transaction.hash();
         let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-        let signed_transaction = TransactionRequest::<PaymentRequest>::new(
+        TransactionRequest::<PaymentRequest>::new(
             transaction,
             sender_pub_key,
-            signed_hash.clone(),
-        );
-        signed_transaction.into()
+            signed_hash,
+        )
     }
 
     #[test]
