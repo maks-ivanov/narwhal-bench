@@ -16,7 +16,7 @@ pub struct CryptoMessage(pub String);
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
-#[derive(BCSCryptoHash, Copy, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
+#[derive(BCSCryptoHash, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
 pub struct PaymentRequest {
     // storing from here is not redundant as from may not equal sender
     // e.g. we are preserving the possibility of adding re-key functionality
@@ -63,7 +63,7 @@ impl PaymentRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(BCSCryptoHash, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
 }
@@ -81,7 +81,7 @@ where
 }
 impl<TransactionVariant> TransactionRequest<TransactionVariant>
 where
-    TransactionVariant: Clone + Copy + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
+    TransactionVariant: Clone  + CryptoHash + Debug + Serialize + for<'a> Deserialize<'a>,
 {
     pub fn new(
         transaction: TransactionVariant,
@@ -176,7 +176,7 @@ pub mod transaction_tests {
         let transaction_hash = transaction.hash();
         let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
         let signed_transaction = TransactionRequest::<PaymentRequest>::new(
-            transaction,
+            transaction.clone(),
             sender_pub_key,
             signed_hash.clone(),
         );
