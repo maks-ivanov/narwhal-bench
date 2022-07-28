@@ -3,11 +3,13 @@
 //! each valid transaction corresponds to a unique state transition within
 //! the space of allowable blockchain transitions
 //!
-use crate::account::{AccountPubKey, AccountSignature};
+use crate::account::{AccountKeyPair, AccountPubKey, AccountSignature};
 use gdex_crypto::{hash::CryptoHash, HashValue, Signature};
 use gdex_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt, fmt::Debug};
+use crypto::{Digest, Hash, DIGEST_LEN, Verifier};
+use blake2::{digest::Update, VarBlake2b};
 type AssetId = u64;
 
 #[derive(Debug, BCSCryptoHash, CryptoHasher, Serialize, Deserialize)]
@@ -63,6 +65,43 @@ impl PaymentRequest {
     }
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TransactionDigest([u8; DIGEST_LEN]);
+
+impl fmt::Display for TransactionDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", base64::encode(&self.0).get(0..16).unwrap())
+    }
+}
+
+impl TransactionDigest {
+    pub fn new(val: [u8; DIGEST_LEN]) -> TransactionDigest {
+        TransactionDigest(val)
+    }
+}
+
+impl From<TransactionDigest> for Digest {
+    fn from(digest: TransactionDigest) -> Self {
+        Digest::new(digest.0)
+    }
+}
+
+impl Hash for PaymentRequest
+{
+    type TypedDigest = TransactionDigest;
+
+    fn digest(&self) -> TransactionDigest {
+        let hasher_update = |hasher: &mut VarBlake2b| {
+            // hasher.update(self.get_from().to_bytes());
+            // hasher.update(self.get_to().to_bytes());
+            hasher.update(self.get_asset_id().to_le_bytes());
+            hasher.update(self.get_amount().to_le_bytes());
+        };
+
+        TransactionDigest(crypto::blake2b_256(hasher_update))
+    }
+}
+
 #[derive(BCSCryptoHash, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
@@ -111,10 +150,12 @@ where
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), gdex_crypto::error::Error> {
+    pub fn verify_transaction(&self) -> Result<(), crypto::traits::Error> {
         let transaction_hash = self.transaction.hash();
-        self.transaction_signature
-            .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
+        // self.transaction_signature
+        //     .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
+
+       self.sender.verify(transaction_hash.to_string().as_bytes(), &self.transaction_signature)
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
@@ -126,31 +167,36 @@ where
 pub mod transaction_tests {
     use super::*;
 
-    use crate::account::AccountPrivKey;
-    use gdex_crypto::{SigningKey, Uniform};
+    use crypto::traits::KeyPair;
+    use crypto::traits::Signer;
+    use rand::{SeedableRng, rngs::StdRng};
 
     const PRIMARY_ASSET_ID: u64 = 0;
 
-    pub fn generate_signed_payment_transaction() -> TransactionRequest<PaymentRequest> {
-        let private_key = AccountPrivKey::generate_for_testing(0);
-        let sender_pub_key = (&private_key).into();
+    pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
+        let mut rng = StdRng::from_seed(seed);
+        (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
+    }
 
-        let receiver_private_key = AccountPrivKey::generate_for_testing(1);
-        let receiver_pub_key = (&receiver_private_key).into();
+    pub fn generate_signed_payment_transaction() -> TransactionRequest<PaymentRequest> {
+        let kp_sender = keys([0; 32]).pop().unwrap();
+        let kp_receiver = keys([1; 32]).pop().unwrap();
+
         let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
         let transaction = PaymentRequest::new(
-            sender_pub_key,
-            receiver_pub_key,
+            kp_sender.public().clone(),
+            kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
             dummy_recent_blockhash,
         );
 
         let transaction_hash = transaction.hash();
-        let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
+        let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+
         TransactionRequest::<PaymentRequest>::new(
             transaction,
-            sender_pub_key,
+            kp_sender.public().clone(),
             signed_hash,
         )
     }
@@ -158,26 +204,24 @@ pub mod transaction_tests {
     #[test]
     // test that a signed payment transaction behaves as expected
     fn create_signed_payment_transaction() {
+        let kp_sender = keys([0; 32]).pop().unwrap();
+        let kp_receiver = keys([1; 32]).pop().unwrap();
 
-        let private_key = AccountPrivKey::generate_for_testing(0);
-        let sender_pub_key = (&private_key).into();
-
-        let receiver_private_key = AccountPrivKey::generate_for_testing(1);
-        let receiver_pub_key = (&receiver_private_key).into();
         let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
         let transaction = PaymentRequest::new(
-            sender_pub_key,
-            receiver_pub_key,
+            kp_sender.public().clone(),
+            kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
             dummy_recent_blockhash,
         );
 
         let transaction_hash = transaction.hash();
-        let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
+        let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+
         let signed_transaction = TransactionRequest::<PaymentRequest>::new(
             transaction.clone(),
-            sender_pub_key,
+            kp_sender.public().clone(),
             signed_hash.clone(),
         );
         
@@ -186,6 +230,8 @@ pub mod transaction_tests {
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
 
+        let sender_pub_key = kp_sender.public().clone();
+        let receiver_pub_key = kp_receiver.public().clone();
         // verify deterministic hashing
         let transaction_hash_0 = transaction.hash();
         let transaction_hash_1 = transaction.hash();
@@ -233,8 +279,8 @@ pub mod transaction_tests {
             TransactionRequest::<PaymentRequest>::deserialize(serialized).unwrap();
 
         // verify transactions
-        let transaction_hash_0 = signed_transaction.get_transaction().hash();
-        let transaction_hash_1 = signed_transaction_deserialized.get_transaction().hash();
+        let transaction_hash_0 = signed_transaction.get_transaction().digest();
+        let transaction_hash_1 = signed_transaction_deserialized.get_transaction().digest();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
