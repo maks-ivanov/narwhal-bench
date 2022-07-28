@@ -150,7 +150,7 @@ async fn execute_advanced_transactions() {
     let tx1 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 100);
     let (digest, batch) = test_batch(vec![tx0, tx1]);
 
-    // Deserialize the consensus workers' batch message to retrieve a list of transactions.
+    // git the consensus workers' batch message to retrieve a list of transactions.
     let transactions = match bincode::deserialize(&batch).unwrap() {
         WorkerMessage::<Ed25519PublicKey>::Batch(Batch(x)) => x,
         _ => panic!("Error has occurred"),
