@@ -60,18 +60,10 @@ impl PaymentRequest {
     }
 }
 
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
 }
-
-impl From<PaymentRequest> for TransactionVariant {
-    fn from(payment_request: PaymentRequest) -> Self {
-        Self::PaymentTransaction(payment_request)
-    }
-}
-
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TransactionDigest([u8; DIGEST_LEN]);
@@ -82,7 +74,7 @@ impl fmt::Display for TransactionDigest {
     }
 }
 
-impl TransactionVariant {
+impl TransactionDigest {
     pub fn new(val: [u8; DIGEST_LEN]) -> TransactionDigest {
         TransactionDigest(val)
     }
@@ -98,16 +90,17 @@ impl Hash for TransactionVariant {
     type TypedDigest = TransactionDigest;
 
     fn digest(&self) -> TransactionDigest {
-        match self { 
+        match self {
             TransactionVariant::PaymentTransaction(payment) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
                     // hasher.update(self.get_from().to_bytes());
                     // hasher.update(self.get_to().to_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
+                    // hasher.update(self.get_recent_batch_digest().to_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
-            },
+            }
         }
     }
 }
@@ -192,11 +185,7 @@ pub mod transaction_tests {
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        TransactionRequest::new(
-            transaction,
-            kp_sender.public().clone(),
-            signed_digest,
-        )
+        TransactionRequest::new(transaction, kp_sender.public().clone(), signed_digest)
     }
 
     #[test]
@@ -312,7 +301,9 @@ pub mod transaction_tests {
 
         // verify transactions
         let transaction_hash_0 = signed_transaction.get_transaction_payload().digest();
-        let transaction_hash_1 = signed_transaction_deserialized.get_transaction_payload().digest();
+        let transaction_hash_1 = signed_transaction_deserialized
+            .get_transaction_payload()
+            .digest();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
