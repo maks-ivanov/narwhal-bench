@@ -16,10 +16,7 @@ use crypto::{
 
 use futures::executor::block_on;
 use proc::bank::BankController;
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{path::Path, sync::Mutex};
 use store::{
     reopen,
     rocks::{open_cf, DBMap},
@@ -36,7 +33,7 @@ use worker::WorkerMessage;
 /// A more advanced execution state for testing.
 pub struct AdvancedTestState {
     store: Store<u64, ExecutionIndices>,
-    bank_controller: Arc<Mutex<BankController>>,
+    bank_controller: Mutex<BankController>,
     pub primary_manager: AccountKeyPair,
 }
 
@@ -133,8 +130,7 @@ impl AdvancedTestState {
         const STATE_CF: &str = "test_state";
         let rocksdb = open_cf(store_path, None, &[STATE_CF]).unwrap();
         let map = reopen!(&rocksdb, STATE_CF;<u64, ExecutionIndices>);
-        let bank_controller: Arc<Mutex<BankController>> =
-            Arc::new(Mutex::new(BankController::default()));
+        let bank_controller: Mutex<BankController> = Mutex::new(BankController::default());
         let primary_manager = keys([0; 32]).pop().unwrap();
         bank_controller
             .lock()
