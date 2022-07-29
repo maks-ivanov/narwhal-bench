@@ -54,7 +54,7 @@ impl BankController {
     }
 
     // TODO #0  //
-    pub fn create_asset(&mut self, owner_pub_key: &AccountPubKey) -> Result<u64, GDEXError> {
+    pub fn create_asset(&mut self, owner_pub_key: &AccountPubKey) -> Result<(), GDEXError> {
         // special handling for genesis
         // an account must be created in this instance
         // since account creation is gated by receipt and balance of primary blockchain asset
@@ -76,7 +76,7 @@ impl BankController {
         self.update_balance(owner_pub_key, self.n_assets, CREATED_ASSET_BALANCE as i64)?;
         // increment asset counter & return less the increment
         self.n_assets += 1;
-        Ok(self.n_assets - 1)
+        Ok(())
     }
 
     pub fn get_balance(

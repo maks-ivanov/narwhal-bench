@@ -1372,6 +1372,7 @@ dependencies = [
  "bytes",
  "config",
  "consensus",
+ "criterion",
  "crypto",
  "futures",
  "multiaddr",
