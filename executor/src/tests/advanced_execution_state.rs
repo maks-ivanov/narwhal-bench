@@ -1,31 +1,31 @@
-use crate::{ExecutionIndices, ExecutionState, ExecutionStateError};
+use super::*;
+use crate::{
+    fixtures::{keys, create_signed_payment_transaction, test_batch, test_certificate, test_store, test_transaction_certificates},
+    ExecutionIndices, ExecutionState, ExecutionStateError};
 use async_trait::async_trait;
 use config::Committee;
 use consensus::ConsensusOutput;
-use crypto::traits::VerifyingKey;
+use crypto::{ed25519::Ed25519PublicKey, traits::{KeyPair, VerifyingKey}};
+
 use futures::executor::block_on;
-use std::path::Path;
+use proc::bank::BankController;
+use std::{path::Path, sync::{Arc, Mutex}};
 use store::{
     reopen,
     rocks::{open_cf, DBMap},
     Store,
 };
-use thiserror::Error;
-
-use super::*;
-use crate::{
-    fixtures::{generate_signed_payment_transaction, test_batch, test_certificate, test_store, test_u64_certificates},
-};
-use crypto::ed25519::Ed25519PublicKey;
-use std::sync::Arc;
 use test_utils::committee;
+use thiserror::Error;
 use tokio::sync::mpsc::channel;
-use types::{Batch, SequenceNumber, TransactionRequest, TransactionVariant};
+use types::{AccountKeyPair, Batch, SequenceNumber, TransactionRequest, PaymentRequest};
 use worker::WorkerMessage;
 
 /// A more advanced execution state for testing.
 pub struct AdvancedTestState {
     store: Store<u64, ExecutionIndices>,
+    bank_controller: Arc<Mutex<BankController>>,
+    pub primary_manager: AccountKeyPair,
 }
 
 impl std::fmt::Debug for AdvancedTestState {
@@ -64,7 +64,7 @@ impl ExecutionStateError for AdvancedTestStateError {
 }
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
-    type Transaction = TransactionRequest<TransactionVariant>;
+    type Transaction = TransactionRequest<PaymentRequest>;
     type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
@@ -74,16 +74,11 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        match request.get_transaction() {
-            TransactionVariant::PaymentTransaction(_payment) => {
-                self.store
-                    .write(Self::INDICES_ADDRESS, execution_indices)
-                    .await;
-            }
-            _ => { 
-                return Err(Self::Error::ClientError)
-            }
-        }
+        self.store
+            .write(Self::INDICES_ADDRESS, execution_indices)
+            .await;
+        let transaction = request.get_transaction();
+        self.bank_controller.lock().unwrap().transfer(transaction.get_from(), transaction.get_to(), transaction.get_asset_id(), transaction.get_amount()).unwrap();
         Ok((Vec::default(), None))
     }
 
@@ -114,8 +109,13 @@ impl AdvancedTestState {
         const STATE_CF: &str = "test_state";
         let rocksdb = open_cf(store_path, None, &[STATE_CF]).unwrap();
         let map = reopen!(&rocksdb, STATE_CF;<u64, ExecutionIndices>);
+        let bank_controller: Arc<Mutex<BankController>> = Arc::new(Mutex::new(BankController::default()));
+        let primary_manager = keys([0; 32]).pop().unwrap();
+        bank_controller.lock().unwrap().create_asset(&primary_manager.public().clone()).unwrap();
         Self {
             store: Store::new(map),
+            bank_controller,
+            primary_manager
         }
     }
 
@@ -136,7 +136,9 @@ async fn execute_advanced_transactions() {
 
     // Spawn the executor.
     let store = test_store();
+
     let execution_state = Arc::new(AdvancedTestState::default());
+    let keypair = execution_state.primary_manager.copy();
     Core::<AdvancedTestState, Ed25519PublicKey>::spawn(
         store.clone(),
         execution_state.clone(),
@@ -145,10 +147,13 @@ async fn execute_advanced_transactions() {
         tx_output,
     );
 
+    
     // Feed a malformed transaction to the mock sequencer
-    let tx0 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 10);
-    let tx1 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 100);
-    let (digest, batch) = test_batch(vec![tx0, tx1]);
+    let tx0 = create_signed_payment_transaction(execution_state.primary_manager.copy(),/* asset_id */ 0, /* amount */ 10);
+    // let tx1 = create_signed_payment_transaction(execution_state.clone().primary_manager,/* asset_id */ 0, /* amount */ 100);
+    let (digest, batch) = test_batch(vec![tx0]);
+
+    // verify we can deserialize objects in the batch
 
     // Deserialize the consensus workers' batch message to retrieve a list of transactions.
     let transactions = match bincode::deserialize(&batch).unwrap() {
@@ -157,9 +162,7 @@ async fn execute_advanced_transactions() {
     };
 
     let serialized = &transactions.clone()[0];
-
-    // verify we can deserialize objects in the batch
-    let _transaction: TransactionRequest<TransactionVariant> =  bincode::deserialize(&serialized).unwrap();
+    let _: TransactionRequest<PaymentRequest> =  bincode::deserialize(&serialized).unwrap();
 
 
     store.write(digest, batch).await;
@@ -174,8 +177,10 @@ async fn execute_advanced_transactions() {
     tx_executor.send(message).await.unwrap();
 
     // Feed two certificates with good transactions to the executor.
-    let certificates = test_u64_certificates(
-        /* certificates */ 2, /* batches_per_certificate */ 2,
+    let certificates = test_transaction_certificates(
+        /* keypair */ execution_state.primary_manager.copy(),
+        /* certificates */ 2, 
+        /* batches_per_certificate */ 2,
         /* transactions_per_batch */ 2,
     );
     for (certificate, batches) in certificates {
@@ -190,7 +195,7 @@ async fn execute_advanced_transactions() {
     }
 
     // Ensure the execution state is updated accordingly.
-    let q = rx_output.recv().await;
+    rx_output.recv().await;
     let expected = ExecutionIndices {
         next_certificate_index: 3,
         next_batch_index: 0,

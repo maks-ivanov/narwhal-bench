@@ -25,6 +25,7 @@ primary = { path = "../primary" }
 tonic = "0.7.2"
 multiaddr = "0.14.0"
 
+proc = { path = "../proc" }
 types = { path = "../types" }
 worker = { path = "../worker" }
 

@@ -4,7 +4,7 @@
 //! the space of allowable blockchain transitions
 //!
 use crate::account::{AccountKeyPair, AccountPubKey, AccountSignature};
-use gdex_crypto::{hash::CryptoHash, HashValue, Signature};
+use gdex_crypto::{hash::CryptoHash, HashValue};
 use gdex_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};

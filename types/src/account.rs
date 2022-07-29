@@ -4,3 +4,4 @@ pub type AccountPubKey = Ed25519PublicKey;
 pub type AccountPrivKey = Ed25519PrivateKey;
 pub type AccountSignature = Ed25519Signature;
 pub type AccountKeyPair = Ed25519KeyPair;
+pub type AccountBalance = u64;
