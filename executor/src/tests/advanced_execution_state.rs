@@ -64,7 +64,7 @@ impl ExecutionStateError for AdvancedTestStateError {
 }
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
-    type Transaction = TransactionRequest<TransactionVariant>;
+    type Transaction = TransactionRequest;
     type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
@@ -74,7 +74,7 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        match request.get_transaction() {
+        match request.get_transaction_payload() {
             TransactionVariant::PaymentTransaction(_payment) => {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
@@ -150,7 +150,7 @@ async fn execute_advanced_transactions() {
     let tx1 = generate_signed_payment_transaction(/* asset_id */ 0, /* amount */ 100);
     let (digest, batch) = test_batch(vec![tx0, tx1]);
 
-    // Deserialize the consensus workers' batch message to retrieve a list of transactions.
+    // git the consensus workers' batch message to retrieve a list of transactions.
     let transactions = match bincode::deserialize(&batch).unwrap() {
         WorkerMessage::<Ed25519PublicKey>::Batch(Batch(x)) => x,
         _ => panic!("Error has occurred"),
@@ -159,7 +159,7 @@ async fn execute_advanced_transactions() {
     let serialized = &transactions.clone()[0];
 
     // verify we can deserialize objects in the batch
-    let _transaction: TransactionRequest<TransactionVariant> =  bincode::deserialize(&serialized).unwrap();
+    let _transaction: TransactionRequest =  bincode::deserialize(&serialized).unwrap();
 
 
     store.write(digest, batch).await;

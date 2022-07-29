@@ -11,10 +11,11 @@ use store::{
     rocks::{open_cf, DBMap},
     Store,
 };
-use types::{
-    serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest
-};
-use gdex_crypto::{hash::CryptoHash, SigningKey, Uniform};
+use crypto::Hash;
+use crypto::traits::{KeyPair, Signer};
+use gdex_crypto::hash::TestOnlyHash;
+use types::{serialized_batch_digest, AccountPrivKey, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant, AccountKeyPair};
+use types::TransactionVariant::PaymentTransaction;
 
 use worker::WorkerMessage;
 
@@ -85,26 +86,28 @@ pub fn test_u64_certificates(
         .collect()
 }
 
-pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
-    let private_key = AccountPrivKey::generate_for_testing(0);
-    let sender_pub_key = (&private_key).into();
+pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
+    let mut rng = StdRng::from_seed(seed);
+    (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
+}
 
-    let receiver_private_key = AccountPrivKey::generate_for_testing(1);
-    let receiver_pub_key = (&receiver_private_key).into();
-    let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
+
+pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest {
+    let kp_sender = keys([0; 32]).pop().unwrap();
+    let kp_receiver = keys([1; 32]).pop().unwrap();
+    let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).test_only_hash();
     let transaction = PaymentRequest::new(
-        sender_pub_key,
-        receiver_pub_key,
+        kp_sender.public().clone(),
+        kp_receiver.public().clone(),
         asset_id,
         amount,
         dummy_recent_blockhash,
     );
-
-    let transaction_hash = transaction.hash();
-    let signed_hash = private_key.sign(&CryptoMessage(transaction_hash.to_string()));
-    TransactionRequest::<PaymentRequest>::new(
-        transaction,
-        sender_pub_key,
+    let transaction_hash = transaction.digest();
+    let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+    TransactionRequest::new(
+        TransactionVariant::PaymentTransaction(transaction),
+        kp_sender.public().clone(),
         signed_hash,
     )
 }
