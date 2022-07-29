@@ -89,15 +89,24 @@ impl ExecutionState for AdvancedTestState {
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
                 self.bank_controller.lock().unwrap().transfer(
-                    payment.get_from(),
-                    payment.get_to(),
+                    payment.get_sender(),
+                    payment.get_receiver(),
                     payment.get_asset_id(),
                     payment.get_amount(),
                 )
             }
+            TransactionVariant::CreateAssetTransaction(create_asset) => {
+                self.bank_controller
+                    .lock()
+                    .unwrap()
+                    .create_asset(create_asset.get_sender());
+                Ok(())
+            }
             _ => {
-                return Err(Self::Error::VMError(GDEXError::OrderProc("Only payment transactions are currently supported".to_string())))
-            },
+                return Err(Self::Error::VMError(GDEXError::OrderProc(
+                    "Only payment transactions are currently supported".to_string(),
+                )))
+            }
         };
         match execution {
             Ok(_) => Ok((Vec::default(), None)),
