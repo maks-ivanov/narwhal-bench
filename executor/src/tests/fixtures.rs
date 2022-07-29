@@ -147,12 +147,12 @@ pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> Transa
         amount,
         dummy_recent_blockhash,
     );
-    let transaction_hash = transaction.digest();
-    let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+    let transaction_digest = transaction.digest();
+    let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
     TransactionRequest::new(
         TransactionVariant::PaymentTransaction(transaction),
         kp_sender.public().clone(),
-        signed_hash,
+        signed_digest,
     )
 }
 
@@ -169,11 +169,11 @@ pub fn create_signed_payment_transaction(
         amount,
         dummy_recent_blockhash,
     );
-    let transaction_hash = transaction.digest();
-    let signed_hash = keypair.sign(transaction_hash.to_string().as_bytes());
+    let transaction_digest = transaction.digest();
+    let signed_digest = keypair.sign(transaction_digest.to_string().as_bytes());
     TransactionRequest::new(
         TransactionVariant::PaymentTransaction(transaction),
         keypair.public().clone(),
-        signed_hash,
+        signed_digest,
     )
 }

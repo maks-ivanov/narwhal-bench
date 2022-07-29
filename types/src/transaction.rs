@@ -3,22 +3,17 @@
 //! each valid transaction corresponds to a unique state transition within
 //! the space of allowable blockchain transitions
 //!
-use crate::account::{AccountKeyPair, AccountPubKey, AccountSignature};
+use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
-use gdex_crypto::{hash::CryptoHash, HashValue};
-use gdex_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
 
-#[derive(Debug, BCSCryptoHash, CryptoHasher, Serialize, Deserialize)]
-pub struct CryptoMessage(pub String);
-
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
-#[derive(BCSCryptoHash, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PaymentRequest {
     // storing from here is not redundant as from may not equal sender
     // e.g. we are preserving the possibility of adding re-key functionality
@@ -28,8 +23,8 @@ pub struct PaymentRequest {
     amount: u64,
     // it is necessary to pass a recent block hash to make sure that a transaction cannot
     // be duplicated, moreover it is used to gaurantee that a submitted transaction was
-    // created within a well designated lookback
-    recent_block_hash: HashValue,
+    // created within a well designated lookback, TODO - implement such checks in pipeline
+    recent_batch_digest: BatchDigest,
 }
 impl PaymentRequest {
     pub fn new(
@@ -37,14 +32,14 @@ impl PaymentRequest {
         to: AccountPubKey,
         asset_id: AssetId,
         amount: u64,
-        recent_block_hash: HashValue,
+        recent_batch_digest: BatchDigest,
     ) -> Self {
         PaymentRequest {
             from,
             to,
             asset_id,
             amount,
-            recent_block_hash,
+            recent_batch_digest,
         }
     }
 
@@ -65,6 +60,19 @@ impl PaymentRequest {
     }
 }
 
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum TransactionVariant {
+    PaymentTransaction(PaymentRequest),
+}
+
+impl From<PaymentRequest> for TransactionVariant {
+    fn from(payment_request: PaymentRequest) -> Self {
+        Self::PaymentTransaction(payment_request)
+    }
+}
+
+
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TransactionDigest([u8; DIGEST_LEN]);
 
@@ -74,7 +82,7 @@ impl fmt::Display for TransactionDigest {
     }
 }
 
-impl TransactionDigest {
+impl TransactionVariant {
     pub fn new(val: [u8; DIGEST_LEN]) -> TransactionDigest {
         TransactionDigest(val)
     }
@@ -86,32 +94,23 @@ impl From<TransactionDigest> for Digest {
     }
 }
 
-impl Hash for PaymentRequest {
+impl Hash for TransactionVariant {
     type TypedDigest = TransactionDigest;
 
     fn digest(&self) -> TransactionDigest {
-        let hasher_update = |hasher: &mut VarBlake2b| {
-            // hasher.update(self.get_from().to_bytes());
-            // hasher.update(self.get_to().to_bytes());
-            hasher.update(self.get_asset_id().to_le_bytes());
-            hasher.update(self.get_amount().to_le_bytes());
-        };
-
-        TransactionDigest(crypto::blake2b_256(hasher_update))
+        match self { 
+            TransactionVariant::PaymentTransaction(payment) => {
+                let hasher_update = |hasher: &mut VarBlake2b| {
+                    // hasher.update(self.get_from().to_bytes());
+                    // hasher.update(self.get_to().to_bytes());
+                    hasher.update(payment.get_asset_id().to_le_bytes());
+                    hasher.update(payment.get_amount().to_le_bytes());
+                };
+                TransactionDigest(crypto::blake2b_256(hasher_update))
+            },
+        }
     }
 }
-
-#[derive(BCSCryptoHash, Clone, CryptoHasher, Debug, Deserialize, Serialize)]
-pub enum TransactionVariant {
-    PaymentTransaction(PaymentRequest),
-}
-
-impl From<PaymentRequest> for TransactionVariant {
-    fn from(payment_request: PaymentRequest) -> Self {
-        Self::PaymentTransaction(payment_request)
-    }
-}
-
 /// The TransactionRequest object is responsible for encoding
 /// a transaction payload and associated metadata
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -150,12 +149,9 @@ impl TransactionRequest {
     }
 
     pub fn verify_transaction(&self) -> Result<(), crypto::traits::Error> {
-        let transaction_hash = self.transaction_payload.hash();
-        // self.transaction_signature
-        //     .verify(&CryptoMessage(transaction_hash.to_string()), &self.sender)
-
+        let transaction_digest = self.transaction_payload.digest();
         self.sender.verify(
-            transaction_hash.to_string().as_bytes(),
+            transaction_digest.to_string().as_bytes(),
             &self.transaction_signature,
         )
     }
@@ -184,22 +180,22 @@ pub mod transaction_tests {
         let kp_sender = keys([0; 32]).pop().unwrap();
         let kp_receiver = keys([1; 32]).pop().unwrap();
 
-        let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-        let transaction = PaymentRequest::new(
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+        let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
             kp_sender.public().clone(),
             kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
-            dummy_recent_blockhash,
-        );
+            dummy_batch_digest,
+        ));
 
-        let transaction_hash = transaction.hash();
-        let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+        let transaction_digest = transaction.digest();
+        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
         TransactionRequest::new(
-            TransactionVariant::PaymentTransaction(transaction),
+            transaction,
             kp_sender.public().clone(),
-            signed_hash,
+            signed_digest,
         )
     }
 
@@ -209,22 +205,22 @@ pub mod transaction_tests {
         let kp_sender = keys([0; 32]).pop().unwrap();
         let kp_receiver = keys([1; 32]).pop().unwrap();
 
-        let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
         let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
             kp_sender.public().clone(),
             kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
-            dummy_recent_blockhash,
+            dummy_batch_digest,
         ));
 
-        let transaction_hash = transaction.hash();
-        let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
+        let transaction_digest = transaction.digest();
+        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
         let signed_transaction = TransactionRequest::new(
             transaction.clone(),
             kp_sender.public().clone(),
-            signed_hash.clone(),
+            signed_digest.clone(),
         );
 
         // perform transaction checks
@@ -235,8 +231,8 @@ pub mod transaction_tests {
         let sender_pub_key = kp_sender.public().clone();
         let receiver_pub_key = kp_receiver.public().clone();
         // verify deterministic hashing
-        let transaction_hash_0 = transaction.hash();
-        let transaction_hash_1 = transaction.hash();
+        let transaction_hash_0 = transaction.digest();
+        let transaction_hash_1 = transaction.digest();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
@@ -247,7 +243,7 @@ pub mod transaction_tests {
             "transaction sender does not match transaction input"
         );
         assert!(
-            signed_transaction.get_transaction_signature().clone() == signed_hash,
+            signed_transaction.get_transaction_signature().clone() == signed_digest,
             "transaction sender does not match transaction input"
         );
 
@@ -315,8 +311,8 @@ pub mod transaction_tests {
         };
 
         // verify transactions
-        let transaction_hash_0 = matched_transaction_payload.digest();
-        let transaction_hash_1 = matched_transaction_payload_deserialized.digest();
+        let transaction_hash_0 = signed_transaction.get_transaction_payload().digest();
+        let transaction_hash_1 = signed_transaction_deserialized.get_transaction_payload().digest();
         assert!(
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
