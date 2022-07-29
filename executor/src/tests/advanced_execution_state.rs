@@ -99,13 +99,7 @@ impl ExecutionState for AdvancedTestState {
                 self.bank_controller
                     .lock()
                     .unwrap()
-                    .create_asset(create_asset.get_sender());
-                Ok(())
-            }
-            _ => {
-                return Err(Self::Error::VMError(GDEXError::OrderProc(
-                    "Only payment transactions are currently supported".to_string(),
-                )))
+                    .create_asset(create_asset.get_sender())
             }
         };
         match execution {
