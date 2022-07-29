@@ -189,8 +189,8 @@ impl TransactionRequest {
 
     pub fn get_sender(&self) -> &AccountPubKey {
         match &self.transaction_payload {
-            TransactionVariant::PaymentTransaction(r) => { r.get_sender() }
-            TransactionVariant::CreateAssetTransaction(r) => { r.get_sender()}
+            TransactionVariant::PaymentTransaction(r) => r.get_sender(),
+            TransactionVariant::CreateAssetTransaction(r) => r.get_sender(),
         }
     }
 
@@ -263,10 +263,8 @@ pub mod transaction_tests {
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        let signed_transaction = TransactionRequest::new(
-            transaction.clone(),
-            signed_digest.clone(),
-        );
+        let signed_transaction =
+            TransactionRequest::new(transaction.clone(), signed_digest.clone());
 
         // perform transaction checks
 
@@ -336,10 +334,8 @@ pub mod transaction_tests {
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        let signed_transaction = TransactionRequest::new(
-            transaction.clone(),
-            signed_digest.clone(),
-        );
+        let signed_transaction =
+            TransactionRequest::new(transaction.clone(), signed_digest.clone());
 
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
