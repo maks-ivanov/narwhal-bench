@@ -34,10 +34,14 @@ impl BankController {
     pub fn create_account(&mut self, account_pub_key: &AccountPubKey) -> Result<(), GDEXError> {
         // do not allow double-creation of a single account
         if self.bank_accounts.contains_key(account_pub_key) {
-            Err(GDEXError::AccountCreation("Account already exists!".to_string()))
+            Err(GDEXError::AccountCreation(
+                "Account already exists!".to_string(),
+            ))
         } else {
-            self.bank_accounts
-                .insert(account_pub_key.clone(), BankAccount::new(account_pub_key.clone()));
+            self.bank_accounts.insert(
+                account_pub_key.clone(),
+                BankAccount::new(account_pub_key.clone()),
+            );
             Ok(())
         }
     }
@@ -75,7 +79,11 @@ impl BankController {
         Ok(self.n_assets - 1)
     }
 
-    pub fn get_balance(&self, account_pub_key: &AccountPubKey, asset_id: AssetId) -> Result<u64, GDEXError> {
+    pub fn get_balance(
+        &self,
+        account_pub_key: &AccountPubKey,
+        asset_id: AssetId,
+    ) -> Result<u64, GDEXError> {
         let bank_account = self
             .bank_accounts
             .get(account_pub_key)
@@ -120,7 +128,9 @@ impl BankController {
             if asset_id == 0 {
                 self.create_account(account_pub_key_to)?
             } else {
-                return Err(GDEXError::PaymentRequest("First create account".to_string()));
+                return Err(GDEXError::PaymentRequest(
+                    "First create account".to_string(),
+                ));
             }
         }
 

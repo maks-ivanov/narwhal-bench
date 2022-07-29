@@ -1,15 +1,25 @@
 use super::*;
 use crate::{
-    fixtures::{keys, create_signed_payment_transaction, test_batch, test_certificate, test_store, test_transaction_certificates},
-    ExecutionIndices, ExecutionState, ExecutionStateError};
+    fixtures::{
+        create_signed_payment_transaction, keys, test_batch, test_certificate, test_store,
+        test_transaction_certificates,
+    },
+    ExecutionIndices, ExecutionState, ExecutionStateError,
+};
 use async_trait::async_trait;
 use config::Committee;
 use consensus::ConsensusOutput;
-use crypto::{ed25519::Ed25519PublicKey, traits::{KeyPair, VerifyingKey}};
+use crypto::{
+    ed25519::Ed25519PublicKey,
+    traits::{KeyPair, VerifyingKey},
+};
 
 use futures::executor::block_on;
 use proc::bank::BankController;
-use std::{path::Path, sync::{Arc, Mutex}};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use store::{
     reopen,
     rocks::{open_cf, DBMap},
@@ -79,11 +89,18 @@ impl ExecutionState for AdvancedTestState {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
-                self.bank_controller.lock().unwrap().transfer(payment.get_from(), payment.get_to(), payment.get_asset_id(), payment.get_amount()).unwrap();
+                self.bank_controller
+                    .lock()
+                    .unwrap()
+                    .transfer(
+                        payment.get_from(),
+                        payment.get_to(),
+                        payment.get_asset_id(),
+                        payment.get_amount(),
+                    )
+                    .unwrap();
             }
-            _ => { 
-                return Err(Self::Error::ClientError)
-            }
+            _ => return Err(Self::Error::ClientError),
         }
         Ok((Vec::default(), None))
     }
@@ -106,7 +123,6 @@ impl ExecutionState for AdvancedTestState {
 }
 
 impl AdvancedTestState {
-
     /// The address at which to store the indices (rocksdb is a key-value store).
     pub const INDICES_ADDRESS: u64 = 14;
 
@@ -115,13 +131,18 @@ impl AdvancedTestState {
         const STATE_CF: &str = "test_state";
         let rocksdb = open_cf(store_path, None, &[STATE_CF]).unwrap();
         let map = reopen!(&rocksdb, STATE_CF;<u64, ExecutionIndices>);
-        let bank_controller: Arc<Mutex<BankController>> = Arc::new(Mutex::new(BankController::default()));
+        let bank_controller: Arc<Mutex<BankController>> =
+            Arc::new(Mutex::new(BankController::default()));
         let primary_manager = keys([0; 32]).pop().unwrap();
-        bank_controller.lock().unwrap().create_asset(&primary_manager.public().clone()).unwrap();
+        bank_controller
+            .lock()
+            .unwrap()
+            .create_asset(&primary_manager.public().clone())
+            .unwrap();
         Self {
             store: Store::new(map),
             bank_controller,
-            primary_manager
+            primary_manager,
         }
     }
 
@@ -152,9 +173,12 @@ async fn execute_advanced_transactions() {
         tx_output,
     );
 
-    
     // Feed a malformed transaction to the mock sequencer
-    let tx0 = create_signed_payment_transaction(execution_state.primary_manager.copy(),/* asset_id */ 0, /* amount */ 10);
+    let tx0 = create_signed_payment_transaction(
+        execution_state.primary_manager.copy(),
+        /* asset_id */ 0,
+        /* amount */ 10,
+    );
     // let tx1 = create_signed_payment_transaction(execution_state.clone().primary_manager,/* asset_id */ 0, /* amount */ 100);
     let (digest, batch) = test_batch(vec![tx0]);
 
@@ -169,8 +193,7 @@ async fn execute_advanced_transactions() {
     let serialized = &transactions.clone()[0];
 
     // verify we can deserialize objects in the batch
-    let _transaction: TransactionRequest =  bincode::deserialize(&serialized).unwrap();
-
+    let _transaction: TransactionRequest = bincode::deserialize(&serialized).unwrap();
 
     store.write(digest, batch).await;
 
@@ -186,7 +209,7 @@ async fn execute_advanced_transactions() {
     // Feed two certificates with good transactions to the executor.
     let certificates = test_transaction_certificates(
         /* keypair */ execution_state.primary_manager.copy(),
-        /* certificates */ 2, 
+        /* certificates */ 2,
         /* batches_per_certificate */ 2,
         /* transactions_per_batch */ 2,
     );

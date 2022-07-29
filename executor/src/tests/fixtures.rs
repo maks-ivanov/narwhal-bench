@@ -1,7 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use config::WorkerId;
-use crypto::{ed25519::Ed25519PublicKey, traits::{KeyPair, Signer}, Hash};
+use crypto::{
+    ed25519::Ed25519PublicKey,
+    traits::{KeyPair, Signer},
+    Hash,
+};
 use gdex_crypto::hash::CryptoHash;
 use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use serde::Serialize;
@@ -12,7 +16,8 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant
+    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, CryptoMessage,
+    Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant,
 };
 
 use worker::WorkerMessage;
@@ -84,10 +89,9 @@ pub fn test_u64_certificates(
         .collect()
 }
 
-
 /// Create a number of test certificates containing transactions of type u64.
 pub fn test_transaction_certificates(
-    keypair: AccountKeyPair, 
+    keypair: AccountKeyPair,
     certificates: usize,
     batches_per_certificate: usize,
     transactions_per_batch: usize,
@@ -102,7 +106,13 @@ pub fn test_transaction_certificates(
                 .map(|_| {
                     test_batch(
                         (0..transactions_per_batch)
-                            .map(|_| create_signed_payment_transaction(/* keypair */ keypair.copy(), /* asset_id */ 0, /* amount */ rng.gen_range(1,1000)))
+                            .map(|_| {
+                                create_signed_payment_transaction(
+                                    /* keypair */ keypair.copy(),
+                                    /* asset_id */ 0,
+                                    /* amount */ rng.gen_range(1, 1000),
+                                )
+                            })
                             .collect(),
                     )
                 })
@@ -146,7 +156,11 @@ pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> Transa
     )
 }
 
-pub fn create_signed_payment_transaction(keypair: AccountKeyPair, asset_id: u64, amount: u64) -> TransactionRequest {
+pub fn create_signed_payment_transaction(
+    keypair: AccountKeyPair,
+    asset_id: u64,
+    amount: u64,
+) -> TransactionRequest {
     let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
     let transaction = PaymentRequest::new(
         keypair.public().clone(),

@@ -6,8 +6,7 @@ use consensus::ConsensusOutput;
 use crypto::traits::VerifyingKey;
 use executor::{ExecutionIndices, ExecutionState, ExecutionStateError};
 use thiserror::Error;
-use types::{TransactionRequest};
-
+use types::TransactionRequest;
 
 /// A simple/dumb execution engine.
 pub struct SimpleExecutionState;
@@ -37,7 +36,6 @@ impl ExecutionState for SimpleExecutionState {
         Ok(ExecutionIndices::default())
     }
 }
-
 
 /// Onboarding transaction logic into execution state
 pub struct FullExecutionState;
