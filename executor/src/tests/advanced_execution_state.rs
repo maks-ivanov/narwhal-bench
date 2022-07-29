@@ -95,12 +95,11 @@ impl ExecutionState for AdvancedTestState {
                     payment.get_amount(),
                 )
             }
-            TransactionVariant::CreateAssetTransaction(create_asset) => {
-                self.bank_controller
-                    .lock()
-                    .unwrap()
-                    .create_asset(create_asset.get_sender())
-            }
+            TransactionVariant::CreateAssetTransaction(create_asset) => self
+                .bank_controller
+                .lock()
+                .unwrap()
+                .create_asset(create_asset.get_sender()),
         };
         match execution {
             Ok(_) => Ok((Vec::default(), None)),
