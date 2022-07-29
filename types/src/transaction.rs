@@ -16,8 +16,8 @@ type AssetId = u64;
 pub struct PaymentRequest {
     // storing from here is not redundant as from may not equal sender
     // e.g. we are preserving the possibility of adding re-key functionality
-    from: AccountPubKey,
-    to: AccountPubKey,
+    sender: AccountPubKey,
+    receiver: AccountPubKey,
     asset_id: AssetId,
     amount: u64,
     // it is necessary to pass a recent block hash to make sure that a transaction cannot
@@ -27,27 +27,27 @@ pub struct PaymentRequest {
 }
 impl PaymentRequest {
     pub fn new(
-        from: AccountPubKey,
-        to: AccountPubKey,
+        sender: AccountPubKey,
+        receiver: AccountPubKey,
         asset_id: AssetId,
         amount: u64,
         recent_batch_digest: BatchDigest,
     ) -> Self {
         PaymentRequest {
-            from,
-            to,
+            sender,
+            receiver,
             asset_id,
             amount,
             recent_batch_digest,
         }
     }
 
-    pub fn get_from(&self) -> &AccountPubKey {
-        &self.from
+    pub fn get_sender(&self) -> &AccountPubKey {
+        &self.sender
     }
 
-    pub fn get_to(&self) -> &AccountPubKey {
-        &self.to
+    pub fn get_receiver(&self) -> &AccountPubKey {
+        &self.receiver
     }
 
     pub fn get_asset_id(&self) -> AssetId {
@@ -66,20 +66,20 @@ impl PaymentRequest {
 /// A transaction for creating a new asset in the BankController
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CreateAssetRequest {
-    from: AccountPubKey,
+    sender: AccountPubKey,
     recent_batch_digest: BatchDigest,
 }
 
 impl CreateAssetRequest {
-    pub fn new(from: AccountPubKey, recent_batch_digest: BatchDigest) -> Self {
+    pub fn new(sender: AccountPubKey, recent_batch_digest: BatchDigest) -> Self {
         CreateAssetRequest {
-            from,
+            sender,
             recent_batch_digest,
         }
     }
 
-    pub fn get_from(&self) -> &AccountPubKey {
-        &self.from
+    pub fn get_sender(&self) -> &AccountPubKey {
+        &self.sender
     }
 
     pub fn get_recent_batch_digest(&self) -> &BatchDigest {
@@ -121,8 +121,8 @@ impl Hash for TransactionVariant {
         match self {
             TransactionVariant::PaymentTransaction(payment) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
-                    hasher.update(payment.get_from().0.to_bytes());
-                    hasher.update(payment.get_to().0.as_bytes());
+                    hasher.update(payment.get_sender().0.to_bytes());
+                    hasher.update(payment.get_receiver().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
                     // can we avoid turning into a string first?
@@ -132,7 +132,7 @@ impl Hash for TransactionVariant {
             }
             TransactionVariant::CreateAssetTransaction(payment) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
-                    hasher.update(payment.get_from().0.to_bytes());
+                    hasher.update(payment.get_sender().0.to_bytes());
                     // can we avoid turning into a string first?
                     hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
                 };
@@ -189,8 +189,8 @@ impl TransactionRequest {
 
     pub fn get_sender(&self) -> &AccountPubKey {
         match &self.transaction_payload {
-            TransactionVariant::PaymentTransaction(r) => { r.get_from() }
-            TransactionVariant::CreateAssetTransaction(r) => { r.get_from()}
+            TransactionVariant::PaymentTransaction(r) => { r.get_sender() }
+            TransactionVariant::CreateAssetTransaction(r) => { r.get_sender()}
         }
     }
 
@@ -313,11 +313,11 @@ pub mod transaction_tests {
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction_payload_matched.get_from() == sender_pub_key,
+            *signed_transaction_payload_matched.get_sender() == sender_pub_key,
             "transaction from does not match transction input"
         );
         assert!(
-            *signed_transaction_payload_matched.get_to() == receiver_pub_key,
+            *signed_transaction_payload_matched.get_receiver() == receiver_pub_key,
             "transaction to does not match transction input"
         );
     }
@@ -367,7 +367,7 @@ pub mod transaction_tests {
             "transaction sender does not match transaction input"
         );
         assert!(
-            *signed_transaction_payload_matched.get_from() == sender_pub_key,
+            *signed_transaction_payload_matched.get_sender() == sender_pub_key,
             "transaction payload sender does not match transaction input"
         );
     }
@@ -435,13 +435,13 @@ pub mod transaction_tests {
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *matched_transaction_payload.get_from()
-                == *matched_transaction_payload_deserialized.get_from(),
-            "transaction from does not match transction input"
+            *matched_transaction_payload.get_sender()
+                == *matched_transaction_payload_deserialized.get_sender(),
+            "transaction sender does not match transction input"
         );
         assert!(
-            *matched_transaction_payload.get_to()
-                == *matched_transaction_payload_deserialized.get_to(),
+            *matched_transaction_payload.get_receiver()
+                == *matched_transaction_payload_deserialized.get_receiver(),
             "transaction to does not match transction input"
         );
     }
