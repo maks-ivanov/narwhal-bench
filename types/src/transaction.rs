@@ -141,15 +141,15 @@ impl TransactionRequest {
 
     pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, TransactionRequestError> {
         match bincode::deserialize(&byte_vec[..]) {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(TransactionRequestError::Deserialization(err)) }
+            Ok(result) => Ok(result),
+            Err(err) => Err(TransactionRequestError::Deserialization(err)),
         }
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, TransactionRequestError> {
         match bincode::serialize(&self) {
-            Ok(result) => { Ok(result) }
-            Err(err) => { Err(TransactionRequestError::Serialization(err)) }
+            Ok(result) => Ok(result),
+            Err(err) => Err(TransactionRequestError::Serialization(err)),
         }
     }
 
