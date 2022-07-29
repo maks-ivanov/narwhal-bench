@@ -6,7 +6,7 @@ use consensus::ConsensusOutput;
 use crypto::traits::VerifyingKey;
 use executor::{ExecutionIndices, ExecutionState, ExecutionStateError};
 use thiserror::Error;
-use types::{TransactionRequest, TransactionVariant};
+use types::{TransactionRequest};
 
 
 /// A simple/dumb execution engine.
@@ -44,7 +44,7 @@ pub struct FullExecutionState;
 
 #[async_trait]
 impl ExecutionState for FullExecutionState {
-    type Transaction = TransactionRequest<TransactionVariant>;
+    type Transaction = TransactionRequest;
     type Error = SimpleExecutionError;
     type Outcome = Vec<u8>;
 

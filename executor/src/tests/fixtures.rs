@@ -1,4 +1,3 @@
-use blake2::crypto_mac::Key;
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use config::WorkerId;
@@ -13,7 +12,7 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest
+    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, CryptoMessage, Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant
 };
 
 use worker::WorkerMessage;
@@ -127,10 +126,9 @@ pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
     (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
 }
 
-pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
+pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest {
     let kp_sender = keys([0; 32]).pop().unwrap();
     let kp_receiver = keys([1; 32]).pop().unwrap();
-
     let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
     let transaction = PaymentRequest::new(
         kp_sender.public().clone(),
@@ -139,20 +137,16 @@ pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> Transa
         amount,
         dummy_recent_blockhash,
     );
-
     let transaction_hash = transaction.digest();
     let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
-
-    TransactionRequest::<PaymentRequest>::new(
-        transaction,
+    TransactionRequest::new(
+        TransactionVariant::PaymentTransaction(transaction),
         kp_sender.public().clone(),
         signed_hash,
     )
 }
 
-
-pub fn create_signed_payment_transaction(keypair: AccountKeyPair, asset_id: u64, amount: u64) -> TransactionRequest<PaymentRequest> {
-
+pub fn create_signed_payment_transaction(keypair: AccountKeyPair, asset_id: u64, amount: u64) -> TransactionRequest {
     let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
     let transaction = PaymentRequest::new(
         keypair.public().clone(),
@@ -161,12 +155,10 @@ pub fn create_signed_payment_transaction(keypair: AccountKeyPair, asset_id: u64,
         amount,
         dummy_recent_blockhash,
     );
-
     let transaction_hash = transaction.digest();
     let signed_hash = keypair.sign(transaction_hash.to_string().as_bytes());
-
-    TransactionRequest::<PaymentRequest>::new(
-        transaction,
+    TransactionRequest::new(
+        TransactionVariant::PaymentTransaction(transaction),
         keypair.public().clone(),
         signed_hash,
     )

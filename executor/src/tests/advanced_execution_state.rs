@@ -18,7 +18,7 @@ use store::{
 use test_utils::committee;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
-use types::{AccountKeyPair, Batch, SequenceNumber, TransactionRequest, PaymentRequest};
+use types::{AccountKeyPair, Batch, SequenceNumber, TransactionRequest, TransactionVariant};
 use worker::WorkerMessage;
 
 /// A more advanced execution state for testing.
@@ -64,7 +64,7 @@ impl ExecutionStateError for AdvancedTestStateError {
 }
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
-    type Transaction = TransactionRequest<PaymentRequest>;
+    type Transaction = TransactionRequest;
     type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
@@ -74,11 +74,17 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        self.store
-            .write(Self::INDICES_ADDRESS, execution_indices)
-            .await;
-        let transaction = request.get_transaction();
-        self.bank_controller.lock().unwrap().transfer(transaction.get_from(), transaction.get_to(), transaction.get_asset_id(), transaction.get_amount()).unwrap();
+        match request.get_transaction_payload() {
+            TransactionVariant::PaymentTransaction(payment) => {
+                self.store
+                    .write(Self::INDICES_ADDRESS, execution_indices)
+                    .await;
+                self.bank_controller.lock().unwrap().transfer(payment.get_from(), payment.get_to(), payment.get_asset_id(), payment.get_amount()).unwrap();
+            }
+            _ => { 
+                return Err(Self::Error::ClientError)
+            }
+        }
         Ok((Vec::default(), None))
     }
 
@@ -138,7 +144,6 @@ async fn execute_advanced_transactions() {
     let store = test_store();
 
     let execution_state = Arc::new(AdvancedTestState::default());
-    let keypair = execution_state.primary_manager.copy();
     Core::<AdvancedTestState, Ed25519PublicKey>::spawn(
         store.clone(),
         execution_state.clone(),
@@ -155,14 +160,16 @@ async fn execute_advanced_transactions() {
 
     // verify we can deserialize objects in the batch
 
-    // Deserialize the consensus workers' batch message to retrieve a list of transactions.
+    // git the consensus workers' batch message to retrieve a list of transactions.
     let transactions = match bincode::deserialize(&batch).unwrap() {
         WorkerMessage::<Ed25519PublicKey>::Batch(Batch(x)) => x,
         _ => panic!("Error has occurred"),
     };
 
     let serialized = &transactions.clone()[0];
-    let _: TransactionRequest<PaymentRequest> =  bincode::deserialize(&serialized).unwrap();
+
+    // verify we can deserialize objects in the batch
+    let _transaction: TransactionRequest =  bincode::deserialize(&serialized).unwrap();
 
 
     store.write(digest, batch).await;
