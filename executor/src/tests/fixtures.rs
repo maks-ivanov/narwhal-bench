@@ -5,8 +5,8 @@ use crypto::{
     ed25519::Ed25519PublicKey,
     traits::{KeyPair, Signer},
     Hash,
+    DIGEST_LEN
 };
-use gdex_crypto::hash::CryptoHash;
 use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -16,7 +16,7 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, CryptoMessage,
+    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate,
     Header, PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant,
 };
 
@@ -139,18 +139,18 @@ pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
 pub fn generate_signed_payment_transaction(asset_id: u64, amount: u64) -> TransactionRequest {
     let kp_sender = keys([0; 32]).pop().unwrap();
     let kp_receiver = keys([1; 32]).pop().unwrap();
-    let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-    let transaction = PaymentRequest::new(
+    let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+    let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
         kp_sender.public().clone(),
         kp_receiver.public().clone(),
         asset_id,
         amount,
-        dummy_recent_blockhash,
-    );
+        dummy_batch_digest,
+    ));
     let transaction_digest = transaction.digest();
     let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
     TransactionRequest::new(
-        TransactionVariant::PaymentTransaction(transaction),
+        transaction,
         kp_sender.public().clone(),
         signed_digest,
     )
@@ -161,18 +161,18 @@ pub fn create_signed_payment_transaction(
     asset_id: u64,
     amount: u64,
 ) -> TransactionRequest {
-    let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-    let transaction = PaymentRequest::new(
+    let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+    let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
         keypair.public().clone(),
         keypair.public().clone(),
         asset_id,
         amount,
-        dummy_recent_blockhash,
-    );
+        dummy_batch_digest,
+    ));
     let transaction_digest = transaction.digest();
     let signed_digest = keypair.sign(transaction_digest.to_string().as_bytes());
     TransactionRequest::new(
-        TransactionVariant::PaymentTransaction(transaction),
+        transaction,
         keypair.public().clone(),
         signed_digest,
     )
