@@ -28,7 +28,9 @@ use store::{
 use test_utils::committee;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
-use types::{AccountKeyPair, Batch, SequenceNumber, TransactionRequest, TransactionVariant};
+use types::{
+    AccountKeyPair, Batch, GDEXError, SequenceNumber, TransactionRequest, TransactionVariant,
+};
 use worker::WorkerMessage;
 
 /// A more advanced execution state for testing.
@@ -52,19 +54,15 @@ impl Default for AdvancedTestState {
 
 #[derive(Debug, Error)]
 pub enum AdvancedTestStateError {
-    #[error("Something went wrong in the authority")]
-    ServerError,
-
-    #[error("The client made something bad")]
-    ClientError,
+    #[error("Something went wrong in the virtual machine")]
+    VMError(GDEXError),
 }
 
 #[async_trait]
 impl ExecutionStateError for AdvancedTestStateError {
     fn node_error(&self) -> bool {
         match self {
-            Self::ServerError => true,
-            Self::ClientError => false,
+            Self::VMError(_) => true,
         }
     }
 
@@ -72,6 +70,7 @@ impl ExecutionStateError for AdvancedTestStateError {
         ToString::to_string(&self)
     }
 }
+
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
     type Transaction = TransactionRequest;
@@ -84,25 +83,26 @@ impl ExecutionState for AdvancedTestState {
         execution_indices: ExecutionIndices,
         request: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        match request.get_transaction_payload() {
+        let execution = match request.get_transaction_payload() {
             TransactionVariant::PaymentTransaction(payment) => {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
-                self.bank_controller
-                    .lock()
-                    .unwrap()
-                    .transfer(
-                        payment.get_from(),
-                        payment.get_to(),
-                        payment.get_asset_id(),
-                        payment.get_amount(),
-                    )
-                    .unwrap();
+                self.bank_controller.lock().unwrap().transfer(
+                    payment.get_from(),
+                    payment.get_to(),
+                    payment.get_asset_id(),
+                    payment.get_amount(),
+                )
             }
-            _ => return Err(Self::Error::ClientError),
+            _ => {
+                return Err(Self::Error::VMError(GDEXError::OrderProc("Only payment transactions are currently supported".to_string())))
+            },
+        };
+        match execution {
+            Ok(_) => Ok((Vec::default(), None)),
+            Err(err) => Err(Self::Error::VMError(err)),
         }
-        Ok((Vec::default(), None))
     }
 
     fn ask_consensus_write_lock(&self) -> bool {

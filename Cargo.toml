@@ -1,5 +1,5 @@
 [workspace]
-members = ["config", "consensus", "crypto", "dag", "executor", "examples", "network", "node", "primary", "proc", "test_utils", "types", "worker", "workspace-hack", "gdex-crypto/crypto", "gdex-crypto/crypto-derive"]
+members = ["config", "consensus", "crypto", "dag", "executor", "examples", "network", "node", "primary", "proc", "test_utils", "types", "worker", "workspace-hack"]
 
 [profile.release]
 codegen-units = 1
