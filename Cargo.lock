@@ -302,6 +302,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
+name = "assert_approx_eq"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c07dab4369547dbe5114677b33fbbf724971019f3818172d59a97a61c774ffd"
+
+[[package]]
 name = "async-recursion"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1476,6 +1482,7 @@ dependencies = [
  "multiaddr",
  "mysten-network 0.1.0 (git+https://github.com/mystenlabs/mysten-infra.git?rev=123c9e40b529315e1c1d91a54fb717111c3e349c)",
  "primary",
+ "proc",
  "rand 0.7.3",
  "rocksdb",
  "serde",
@@ -2997,6 +3004,20 @@ dependencies = [
  "typed-store",
  "types",
  "worker",
+ "workspace-hack",
+]
+
+[[package]]
+name = "proc"
+version = "0.1.0"
+dependencies = [
+ "assert_approx_eq",
+ "bcs",
+ "criterion",
+ "rand 0.7.3",
+ "serde",
+ "serde_json",
+ "types",
  "workspace-hack",
 ]
 

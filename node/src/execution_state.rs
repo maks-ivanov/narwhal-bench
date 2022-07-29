@@ -6,7 +6,7 @@ use consensus::ConsensusOutput;
 use crypto::traits::VerifyingKey;
 use executor::{ExecutionIndices, ExecutionState, ExecutionStateError};
 use thiserror::Error;
-use types::{TransactionRequest, TransactionVariant};
+use types::{TransactionRequest};
 
 
 /// A simple/dumb execution engine.

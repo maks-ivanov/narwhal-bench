@@ -4,7 +4,7 @@
 //! the space of allowable blockchain transitions
 //!
 use crate::account::{AccountKeyPair, AccountPubKey, AccountSignature};
-use gdex_crypto::{hash::CryptoHash, HashValue, Signature};
+use gdex_crypto::{hash::CryptoHash, HashValue};
 use gdex_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
@@ -211,19 +211,21 @@ pub mod transaction_tests {
         let kp_receiver = keys([1; 32]).pop().unwrap();
 
         let dummy_recent_blockhash = CryptoMessage("DUMMY".to_string()).hash();
-        let transaction = PaymentRequest::new(
+        let transaction = TransactionVariant::PaymentTransaction(
+            PaymentRequest::new(
             kp_sender.public().clone(),
             kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
             dummy_recent_blockhash,
+            )
         );
 
         let transaction_hash = transaction.hash();
         let signed_hash = kp_sender.sign(transaction_hash.to_string().as_bytes());
 
         let signed_transaction = TransactionRequest::new(
-            TransactionVariant::PaymentTransaction(transaction.clone()),
+            transaction.clone(),
             kp_sender.public().clone(),
             signed_hash.clone(),
         );
