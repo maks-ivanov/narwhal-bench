@@ -28,7 +28,9 @@ use store::{
 use test_utils::committee;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
-use types::{AccountKeyPair, Batch, GDEXError, SequenceNumber, TransactionRequest, TransactionVariant};
+use types::{
+    AccountKeyPair, Batch, GDEXError, SequenceNumber, TransactionRequest, TransactionVariant,
+};
 use worker::WorkerMessage;
 
 /// A more advanced execution state for testing.
@@ -86,26 +88,18 @@ impl ExecutionState for AdvancedTestState {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
-                self.bank_controller
-                    .lock()
-                    .unwrap()
-                    .transfer(
-                        payment.get_from(),
-                        payment.get_to(),
-                        payment.get_asset_id(),
-                        payment.get_amount(),
-                    )
+                self.bank_controller.lock().unwrap().transfer(
+                    payment.get_from(),
+                    payment.get_to(),
+                    payment.get_asset_id(),
+                    payment.get_amount(),
+                )
             }
         };
         match execution {
-            Ok(_) => { 
-                Ok((Vec::default(), None)) 
-            }
-            Err(err) => { 
-                Err(Self::Error::VMError(err))
-            }
+            Ok(_) => Ok((Vec::default(), None)),
+            Err(err) => Err(Self::Error::VMError(err)),
         }
-
     }
 
     fn ask_consensus_write_lock(&self) -> bool {

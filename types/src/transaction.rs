@@ -5,11 +5,10 @@
 //!
 use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest};
 use blake2::{digest::Update, VarBlake2b};
-use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
+use crypto::{traits::ToFromBytes, Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
-
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
@@ -58,6 +57,10 @@ impl PaymentRequest {
     pub fn get_amount(&self) -> u64 {
         self.amount
     }
+
+    pub fn get_recent_batch_digest(&self) -> &BatchDigest {
+        &self.recent_batch_digest
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -93,19 +96,30 @@ impl Hash for TransactionVariant {
         match self {
             TransactionVariant::PaymentTransaction(payment) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
-                    // hasher.update(self.get_from().to_bytes());
-                    // hasher.update(self.get_to().to_bytes());
+                    hasher.update(payment.get_from().0.to_bytes());
+                    hasher.update(payment.get_to().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
-                    // hasher.update(self.get_recent_batch_digest().to_bytes());
+                    // can we avoid turning into a string first?
+                    hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
         }
     }
 }
+
+#[derive(Debug)]
+pub enum TransactionRequestError {
+    InvalidSender(String),
+    FailedVerification(crypto::traits::Error),
+    Serialization(Box<bincode::ErrorKind>),
+    Deserialization(Box<bincode::ErrorKind>),
+}
+
 /// The TransactionRequest object is responsible for encoding
-/// a transaction payload and associated metadata
+/// a transaction payload and associated metadata which allows
+/// validation of sender logic
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TransactionRequest {
     transaction_payload: TransactionVariant,
@@ -125,8 +139,18 @@ impl TransactionRequest {
         }
     }
 
-    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, Box<bincode::ErrorKind>> {
-        bincode::deserialize(&byte_vec[..])
+    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, TransactionRequestError> {
+        match bincode::deserialize(&byte_vec[..]) {
+            Ok(result) => { Ok(result) }
+            Err(err) => { Err(TransactionRequestError::Deserialization(err)) }
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, TransactionRequestError> {
+        match bincode::serialize(&self) {
+            Ok(result) => { Ok(result) }
+            Err(err) => { Err(TransactionRequestError::Serialization(err)) }
+        }
     }
 
     pub fn get_transaction_payload(&self) -> &TransactionVariant {
@@ -141,16 +165,27 @@ impl TransactionRequest {
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), crypto::traits::Error> {
+    pub fn verify_transaction(&self) -> Result<(), TransactionRequestError> {
         let transaction_digest = self.transaction_payload.digest();
-        self.sender.verify(
+
+        match &self.transaction_payload {
+            TransactionVariant::PaymentTransaction(r) => {
+                // for now there is no logic that supports re-keys, so we require sender matches payload
+                if r.get_from().as_bytes() != self.sender.as_bytes() {
+                    return Err(TransactionRequestError::InvalidSender(
+                        "Sender does not match from field".to_string(),
+                    ));
+                }
+            }
+        };
+
+        match self.sender.verify(
             transaction_digest.to_string().as_bytes(),
             &self.transaction_signature,
-        )
-    }
-
-    pub fn serialize(&self) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
-        bincode::serialize(&self)
+        ) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(TransactionRequestError::FailedVerification(err)),
+        }
     }
 }
 
