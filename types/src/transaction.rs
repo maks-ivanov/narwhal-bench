@@ -63,9 +63,34 @@ impl PaymentRequest {
     }
 }
 
+/// A transaction for creating a new asset in the BankController
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CreateAssetRequest {
+    from: AccountPubKey,
+    recent_batch_digest: BatchDigest,
+}
+
+impl CreateAssetRequest {
+    pub fn new(from: AccountPubKey, recent_batch_digest: BatchDigest) -> Self {
+        CreateAssetRequest {
+            from,
+            recent_batch_digest,
+        }
+    }
+
+    pub fn get_from(&self) -> &AccountPubKey {
+        &self.from
+    }
+
+    pub fn get_recent_batch_digest(&self) -> &BatchDigest {
+        &self.recent_batch_digest
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
+    CreateAssetTransaction(CreateAssetRequest),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -100,6 +125,14 @@ impl Hash for TransactionVariant {
                     hasher.update(payment.get_to().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
+                    // can we avoid turning into a string first?
+                    hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
+                };
+                TransactionDigest(crypto::blake2b_256(hasher_update))
+            }
+            TransactionVariant::CreateAssetTransaction(payment) => {
+                let hasher_update = |hasher: &mut VarBlake2b| {
+                    hasher.update(payment.get_from().0.to_bytes());
                     // can we avoid turning into a string first?
                     hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
                 };
@@ -171,6 +204,13 @@ impl TransactionRequest {
         match &self.transaction_payload {
             TransactionVariant::PaymentTransaction(r) => {
                 // for now there is no logic that supports re-keys, so we require sender matches payload
+                if r.get_from().as_bytes() != self.sender.as_bytes() {
+                    return Err(TransactionRequestError::InvalidSender(
+                        "Sender does not match from field".to_string(),
+                    ));
+                }
+            }
+            TransactionVariant::CreateAssetTransaction(r) => {
                 if r.get_from().as_bytes() != self.sender.as_bytes() {
                     return Err(TransactionRequestError::InvalidSender(
                         "Sender does not match from field".to_string(),
@@ -278,6 +318,9 @@ pub mod transaction_tests {
         let signed_transaction_payload_matched = match signed_transaction.get_transaction_payload()
         {
             TransactionVariant::PaymentTransaction(r) => r,
+            _ => {
+                panic!("An unexpected error occurred while reading the payment transaction");
+            }
         };
 
         assert!(
@@ -295,6 +338,58 @@ pub mod transaction_tests {
         assert!(
             *signed_transaction_payload_matched.get_to() == receiver_pub_key,
             "transaction to does not match transction input"
+        );
+    }
+
+    #[test]
+    fn create_asset_transaction() {
+        let kp_sender = keys([0; 32]).pop().unwrap();
+
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+
+        let transaction = TransactionVariant::CreateAssetTransaction(CreateAssetRequest::new(
+            kp_sender.public().clone(),
+            dummy_batch_digest
+        ));
+
+        let transaction_digest = transaction.digest();
+        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+
+        let signed_transaction = TransactionRequest::new(
+            transaction.clone(),
+            kp_sender.public().clone(),
+            signed_digest.clone(),
+        );
+
+        // check valid signature
+        signed_transaction.verify_transaction().unwrap();
+
+        let sender_pub_key = kp_sender.public().clone();
+
+        let signed_transaction_payload_matched = match signed_transaction.get_transaction_payload()
+        {
+            TransactionVariant::CreateAssetTransaction(r) => r,
+            _ => {
+                panic!("An unexpected error occurred while reading the payment transaction");
+            }
+        };
+
+
+        // verify deterministic hashing
+        let transaction_hash_0 = transaction.digest();
+        let transaction_hash_1 = transaction.digest();
+        assert!(
+            transaction_hash_0 == transaction_hash_1,
+            "hashes appears to have violated determinism"
+        );
+
+        assert!(
+            *signed_transaction.get_sender() == sender_pub_key,
+            "transaction sender does not match transaction input"
+        );
+        assert!(
+            *signed_transaction_payload_matched.get_from() == sender_pub_key,
+            "transaction payload sender does not match transaction input"
         );
     }
 
@@ -328,10 +423,16 @@ pub mod transaction_tests {
         let matched_transaction_payload_deserialized =
             match signed_transaction_deserialized.get_transaction_payload() {
                 TransactionVariant::PaymentTransaction(r) => r,
+                _ => {
+                    panic!("An unexpected error occurred while reading the payment transaction");
+                }
             };
 
         let matched_transaction_payload = match signed_transaction.get_transaction_payload() {
             TransactionVariant::PaymentTransaction(r) => r,
+            _ => {
+                panic!("An unexpected error occurred while reading the payment transaction");
+            }
         };
 
         // verify transactions
