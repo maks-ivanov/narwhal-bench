@@ -16,7 +16,7 @@ use crypto::{
 
 use futures::executor::block_on;
 use proc::bank::BankController;
-use std::{path::Path, sync::Mutex};
+use std::{fmt, fmt::Display, path::Path, sync::Mutex};
 use store::{
     reopen,
     rocks::{open_cf, DBMap},
@@ -51,8 +51,12 @@ impl Default for AdvancedTestState {
 
 #[derive(Debug, Error)]
 pub enum AdvancedTestStateError {
-    #[error("Something went wrong in the virtual machine")]
     VMError(GDEXError),
+}
+impl Display for AdvancedTestStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self)
+    }
 }
 
 #[async_trait]
