@@ -14,6 +14,9 @@ pub use asset::*;
 mod consensus;
 pub use consensus::*;
 
+mod orderbook;
+pub use orderbook::*;
+
 mod primary;
 pub use primary::*;
 

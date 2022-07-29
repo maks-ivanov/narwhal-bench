@@ -1350,6 +1350,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
+name = "engine"
+version = "0.1.0"
+dependencies = [
+ "bcs",
+ "criterion",
+ "rand 0.8.5",
+ "serde",
+ "types",
+ "workspace-hack",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2814,6 +2826,8 @@ dependencies = [
  "assert_approx_eq",
  "bcs",
  "criterion",
+ "crypto",
+ "engine",
  "rand 0.7.3",
  "serde",
  "serde_json",

@@ -3,11 +3,12 @@
 //! each valid transaction corresponds to a unique state transition within
 //! the space of allowable blockchain transitions
 //!
-use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest};
+use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, OrderSide};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
-use std::{fmt, fmt::Debug};
+use std::{fmt, fmt::Debug, time::SystemTime};
+
 type AssetId = u64;
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
@@ -87,10 +88,60 @@ impl CreateAssetRequest {
     }
 }
 
+pub enum OrderRequest {
+    Market {
+        sender: AccountPubKey,
+        base_asset: AssetId,
+        quote_asset: AssetId,
+        side: OrderSide,
+        quantity: u64,
+        ts: SystemTime,
+    },
+
+    Limit {
+        sender: AccountPubKey,
+        base_asset: AssetId,
+        quote_asset: AssetId,
+        side: OrderSide,
+        price: u64,
+        quantity: u64,
+        ts: SystemTime,
+    },
+
+    Amend {
+        sender: AccountPubKey,
+        id: u64,
+        side: OrderSide,
+        price: u64,
+        quantity: u64,
+        ts: SystemTime,
+    },
+
+    CancelOrder {
+        sender: AccountPubKey,
+        id: u64,
+        side: OrderSide,
+        //ts: SystemTime,
+    },
+}
+
+impl OrderRequest {
+
+    pub fn get_sender(&self) -> &AccountPubKey {
+        match self {
+            OrderRequest::Market({sender, ...}) => sender,
+            // OrderRequest::Limit(r) => r.sender,
+            // OrderRequest::Limit(r) => r.sender,
+        }
+    }
+
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
     PaymentTransaction(PaymentRequest),
     CreateAssetTransaction(CreateAssetRequest),
+    OrderTransaction(OrderRequest),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -138,6 +189,18 @@ impl Hash for TransactionVariant {
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
+            TransactionVariant::OrderTransaction(order) => {
+                let hasher_update = |hasher: &mut VarBlake2b| {
+                    hasher.update(order.get_sender().0.to_bytes());
+                    // can we avoid turning into a string first?
+                    match order {
+                        OrderRequest::Amend(r) => {hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());}
+                    }
+                    
+                };
+                TransactionDigest(crypto::blake2b_256(hasher_update))
+            }
+
         }
     }
 }
