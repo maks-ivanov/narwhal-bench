@@ -5,7 +5,7 @@
 //!
 use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest};
 use blake2::{digest::Update, VarBlake2b};
-use crypto::{traits::ToFromBytes, Digest, Hash, Verifier, DIGEST_LEN};
+use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
@@ -156,18 +156,15 @@ pub enum TransactionRequestError {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TransactionRequest {
     transaction_payload: TransactionVariant,
-    sender: AccountPubKey,
     transaction_signature: AccountSignature,
 }
 impl TransactionRequest {
     pub fn new(
         transaction_payload: TransactionVariant,
-        sender: AccountPubKey,
         transaction_signature: AccountSignature,
     ) -> Self {
         TransactionRequest {
             transaction_payload,
-            sender,
             transaction_signature,
         }
     }
@@ -191,7 +188,10 @@ impl TransactionRequest {
     }
 
     pub fn get_sender(&self) -> &AccountPubKey {
-        &self.sender
+        match &self.transaction_payload {
+            TransactionVariant::PaymentTransaction(r) => { r.get_from() }
+            TransactionVariant::CreateAssetTransaction(r) => { r.get_from()}
+        }
     }
 
     pub fn get_transaction_signature(&self) -> &AccountSignature {
@@ -201,25 +201,7 @@ impl TransactionRequest {
     pub fn verify_transaction(&self) -> Result<(), TransactionRequestError> {
         let transaction_digest = self.transaction_payload.digest();
 
-        match &self.transaction_payload {
-            TransactionVariant::PaymentTransaction(r) => {
-                // for now there is no logic that supports re-keys, so we require sender matches payload
-                if r.get_from().as_bytes() != self.sender.as_bytes() {
-                    return Err(TransactionRequestError::InvalidSender(
-                        "Sender does not match from field".to_string(),
-                    ));
-                }
-            }
-            TransactionVariant::CreateAssetTransaction(r) => {
-                if r.get_from().as_bytes() != self.sender.as_bytes() {
-                    return Err(TransactionRequestError::InvalidSender(
-                        "Sender does not match from field".to_string(),
-                    ));
-                }
-            }
-        };
-
-        match self.sender.verify(
+        match self.get_sender().verify(
             transaction_digest.to_string().as_bytes(),
             &self.transaction_signature,
         ) {
@@ -260,7 +242,7 @@ pub mod transaction_tests {
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        TransactionRequest::new(transaction, kp_sender.public().clone(), signed_digest)
+        TransactionRequest::new(transaction, signed_digest)
     }
 
     #[test]
@@ -283,7 +265,6 @@ pub mod transaction_tests {
 
         let signed_transaction = TransactionRequest::new(
             transaction.clone(),
-            kp_sender.public().clone(),
             signed_digest.clone(),
         );
 
@@ -357,7 +338,6 @@ pub mod transaction_tests {
 
         let signed_transaction = TransactionRequest::new(
             transaction.clone(),
-            kp_sender.public().clone(),
             signed_digest.clone(),
         );
 

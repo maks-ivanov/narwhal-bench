@@ -150,5 +150,5 @@ pub fn create_signed_payment_transaction(
     ));
     let transaction_digest = transaction.digest();
     let signed_digest = keypair.sign(transaction_digest.to_string().as_bytes());
-    TransactionRequest::new(transaction, keypair.public().clone(), signed_digest)
+    TransactionRequest::new(transaction, signed_digest)
 }
