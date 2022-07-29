@@ -95,6 +95,9 @@ impl ExecutionState for AdvancedTestState {
                     payment.get_amount(),
                 )
             }
+            _ => {
+                return Err(Self::Error::VMError(GDEXError::OrderProc("Only payment transactions are currently supported".to_string())))
+            },
         };
         match execution {
             Ok(_) => Ok((Vec::default(), None)),

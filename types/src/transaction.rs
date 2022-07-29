@@ -349,7 +349,7 @@ pub mod transaction_tests {
 
         let transaction = TransactionVariant::CreateAssetTransaction(CreateAssetRequest::new(
             kp_sender.public().clone(),
-            dummy_batch_digest
+            dummy_batch_digest,
         ));
 
         let transaction_digest = transaction.digest();
@@ -373,7 +373,6 @@ pub mod transaction_tests {
                 panic!("An unexpected error occurred while reading the payment transaction");
             }
         };
-
 
         // verify deterministic hashing
         let transaction_hash_0 = transaction.digest();
