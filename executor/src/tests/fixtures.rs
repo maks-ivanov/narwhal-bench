@@ -16,7 +16,7 @@ use store::{
 };
 use types::{
     serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, Header,
-    PaymentRequest, SerializedBatchMessage, TransactionRequest, TransactionVariant,
+    PaymentRequest, SerializedBatchMessage, GDEXSignedTransaction, GDEXTransaction, TransactionVariant,
 };
 
 use worker::WorkerMessage;
@@ -139,16 +139,22 @@ pub fn create_signed_payment_transaction(
     keypair: AccountKeyPair,
     asset_id: u64,
     amount: u64,
-) -> TransactionRequest {
+) -> GDEXSignedTransaction {
     let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
-    let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-        keypair.public().clone(),
+
+    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
         keypair.public().clone(),
         asset_id,
         amount,
-        dummy_batch_digest,
     ));
+
+    let transaction = GDEXTransaction::new(
+        keypair.public().clone(),
+        dummy_batch_digest,
+        transaction_variant,
+    );
+
     let transaction_digest = transaction.digest();
     let signed_digest = keypair.sign(transaction_digest.to_string().as_bytes());
-    TransactionRequest::new(transaction, signed_digest)
+    GDEXSignedTransaction::new(keypair.public().clone(), transaction, signed_digest)
 }

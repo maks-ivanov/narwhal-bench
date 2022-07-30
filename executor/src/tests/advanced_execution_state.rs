@@ -26,7 +26,7 @@ use test_utils::committee;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
 use types::{
-    AccountKeyPair, Batch, GDEXError, SequenceNumber, TransactionRequest, TransactionVariant,
+    AccountKeyPair, Batch, GDEXError, SequenceNumber, GDEXSignedTransaction, TransactionVariant,
 };
 use worker::WorkerMessage;
 
@@ -74,7 +74,7 @@ impl ExecutionStateError for AdvancedTestStateError {
 
 #[async_trait]
 impl ExecutionState for AdvancedTestState {
-    type Transaction = TransactionRequest;
+    type Transaction = GDEXSignedTransaction;
     type Error = AdvancedTestStateError;
     type Outcome = Vec<u8>;
 
@@ -82,25 +82,26 @@ impl ExecutionState for AdvancedTestState {
         &self,
         _consensus_output: &ConsensusOutput<PublicKey>,
         execution_indices: ExecutionIndices,
-        request: Self::Transaction,
+        signed_transaction: Self::Transaction,
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
-        let execution = match request.get_transaction_payload() {
+        let transaction = signed_transaction.get_transaction_payload();
+        let execution = match transaction.get_variant() {
             TransactionVariant::PaymentTransaction(payment) => {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
                 self.bank_controller.lock().unwrap().transfer(
-                    payment.get_sender(),
+                    transaction.get_sender(),
                     payment.get_receiver(),
                     payment.get_asset_id(),
                     payment.get_amount(),
                 )
             }
-            TransactionVariant::CreateAssetTransaction(create_asset) => self
+            TransactionVariant::CreateAssetTransaction(_create_asset) => self
                 .bank_controller
                 .lock()
                 .unwrap()
-                .create_asset(create_asset.get_sender()),
+                .create_asset(transaction.get_sender()),
         };
         match execution {
             Ok(_) => Ok((Vec::default(), None)),
@@ -195,7 +196,7 @@ async fn execute_advanced_transactions() {
     let serialized = &transactions.clone()[0];
 
     // verify we can deserialize objects in the batch
-    let _transaction: TransactionRequest = bincode::deserialize(&serialized).unwrap();
+    let _transaction: GDEXSignedTransaction = bincode::deserialize(&serialized).unwrap();
 
     store.write(digest, batch).await;
 

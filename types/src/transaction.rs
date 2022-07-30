@@ -14,36 +14,17 @@ type AssetId = u64;
 /// User A to User B provided User A has sufficient funds
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PaymentRequest {
-    // storing from here is not redundant as from may not equal sender
-    // e.g. we are preserving the possibility of adding re-key functionality
-    sender: AccountPubKey,
     receiver: AccountPubKey,
     asset_id: AssetId,
     amount: u64,
-    // it is necessary to pass a recent block hash to make sure that a transaction cannot
-    // be duplicated, moreover it is used to gaurantee that a submitted transaction was
-    // created within a well designated lookback, TODO - implement such checks in pipeline
-    recent_batch_digest: BatchDigest,
 }
 impl PaymentRequest {
-    pub fn new(
-        sender: AccountPubKey,
-        receiver: AccountPubKey,
-        asset_id: AssetId,
-        amount: u64,
-        recent_batch_digest: BatchDigest,
-    ) -> Self {
+    pub fn new(receiver: AccountPubKey, asset_id: AssetId, amount: u64) -> Self {
         PaymentRequest {
-            sender,
             receiver,
             asset_id,
             amount,
-            recent_batch_digest,
         }
-    }
-
-    pub fn get_sender(&self) -> &AccountPubKey {
-        &self.sender
     }
 
     pub fn get_receiver(&self) -> &AccountPubKey {
@@ -57,24 +38,41 @@ impl PaymentRequest {
     pub fn get_amount(&self) -> u64 {
         self.amount
     }
+}
 
-    pub fn get_recent_batch_digest(&self) -> &BatchDigest {
-        &self.recent_batch_digest
-    }
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CreateAssetRequest {}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum TransactionVariant {
+    PaymentTransaction(PaymentRequest),
+    CreateAssetTransaction(CreateAssetRequest),
 }
 
 /// A transaction for creating a new asset in the BankController
+/// GDEX prefix is added because Narwal github contains a Transaction type
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct CreateAssetRequest {
+pub struct GDEXTransaction {
+    // storing from here is not redundant as from may not equal sender
+    // e.g. we are preserving the possibility of adding re-key functionality
     sender: AccountPubKey,
+    // it is necessary to pass a recent block hash to make sure that a transaction cannot
+    // be duplicated, moreover it is used to gaurantee that a submitted transaction was
+    // created within a well designated lookback, TODO - implement such checks in pipeline
     recent_batch_digest: BatchDigest,
+    variant: TransactionVariant,
 }
 
-impl CreateAssetRequest {
-    pub fn new(sender: AccountPubKey, recent_batch_digest: BatchDigest) -> Self {
-        CreateAssetRequest {
+impl GDEXTransaction {
+    pub fn new(
+        sender: AccountPubKey,
+        recent_batch_digest: BatchDigest,
+        variant: TransactionVariant,
+    ) -> Self {
+        GDEXTransaction {
             sender,
             recent_batch_digest,
+            variant,
         }
     }
 
@@ -85,14 +83,11 @@ impl CreateAssetRequest {
     pub fn get_recent_batch_digest(&self) -> &BatchDigest {
         &self.recent_batch_digest
     }
-}
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum TransactionVariant {
-    PaymentTransaction(PaymentRequest),
-    CreateAssetTransaction(CreateAssetRequest),
+    pub fn get_variant(&self) -> &TransactionVariant {
+        &self.variant
+    }
 }
-
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TransactionDigest([u8; DIGEST_LEN]);
 
@@ -114,27 +109,27 @@ impl From<TransactionDigest> for Digest {
     }
 }
 
-impl Hash for TransactionVariant {
+impl Hash for GDEXTransaction {
     type TypedDigest = TransactionDigest;
 
     fn digest(&self) -> TransactionDigest {
-        match self {
+        match &self.variant {
             TransactionVariant::PaymentTransaction(payment) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
-                    hasher.update(payment.get_sender().0.to_bytes());
+                    hasher.update(self.get_sender().0.to_bytes());
                     hasher.update(payment.get_receiver().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
                     // can we avoid turning into a string first?
-                    hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
-            TransactionVariant::CreateAssetTransaction(payment) => {
+            TransactionVariant::CreateAssetTransaction(_create_asset) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
-                    hasher.update(payment.get_sender().0.to_bytes());
+                    hasher.update(self.get_sender().0.to_bytes());
                     // can we avoid turning into a string first?
-                    hasher.update(payment.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
@@ -143,70 +138,66 @@ impl Hash for TransactionVariant {
 }
 
 #[derive(Debug)]
-pub enum TransactionRequestError {
+pub enum GDEXSignedTransactionError {
     InvalidSender(String),
     FailedVerification(crypto::traits::Error),
     Serialization(Box<bincode::ErrorKind>),
     Deserialization(Box<bincode::ErrorKind>),
 }
 
-/// The TransactionRequest object is responsible for encoding
+/// The SignedTransaction object is responsible for encoding
 /// a transaction payload and associated metadata which allows
 /// validation of sender logic
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TransactionRequest {
-    transaction_payload: TransactionVariant,
+pub struct GDEXSignedTransaction {
+    sender: AccountPubKey,
+    transaction_payload: GDEXTransaction,
     transaction_signature: AccountSignature,
 }
-impl TransactionRequest {
+impl GDEXSignedTransaction {
     pub fn new(
-        transaction_payload: TransactionVariant,
+        sender: AccountPubKey,
+        transaction_payload: GDEXTransaction,
         transaction_signature: AccountSignature,
     ) -> Self {
-        TransactionRequest {
+        GDEXSignedTransaction {
+            sender,
             transaction_payload,
             transaction_signature,
         }
     }
 
-    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, TransactionRequestError> {
+    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, GDEXSignedTransactionError> {
         match bincode::deserialize(&byte_vec[..]) {
             Ok(result) => Ok(result),
-            Err(err) => Err(TransactionRequestError::Deserialization(err)),
+            Err(err) => Err(GDEXSignedTransactionError::Deserialization(err)),
         }
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>, TransactionRequestError> {
+    pub fn serialize(&self) -> Result<Vec<u8>, GDEXSignedTransactionError> {
         match bincode::serialize(&self) {
             Ok(result) => Ok(result),
-            Err(err) => Err(TransactionRequestError::Serialization(err)),
+            Err(err) => Err(GDEXSignedTransactionError::Serialization(err)),
         }
     }
 
-    pub fn get_transaction_payload(&self) -> &TransactionVariant {
+    pub fn get_transaction_payload(&self) -> &GDEXTransaction {
         &self.transaction_payload
-    }
-
-    pub fn get_sender(&self) -> &AccountPubKey {
-        match &self.transaction_payload {
-            TransactionVariant::PaymentTransaction(r) => r.get_sender(),
-            TransactionVariant::CreateAssetTransaction(r) => r.get_sender(),
-        }
     }
 
     pub fn get_transaction_signature(&self) -> &AccountSignature {
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), TransactionRequestError> {
+    pub fn verify_transaction(&self) -> Result<(), GDEXSignedTransactionError> {
         let transaction_digest = self.transaction_payload.digest();
 
-        match self.get_sender().verify(
+        match self.transaction_payload.get_sender().verify(
             transaction_digest.to_string().as_bytes(),
             &self.transaction_signature,
         ) {
             Ok(_) => Ok(()),
-            Err(err) => Err(TransactionRequestError::FailedVerification(err)),
+            Err(err) => Err(GDEXSignedTransactionError::FailedVerification(err)),
         }
     }
 }
@@ -226,53 +217,43 @@ pub mod transaction_tests {
         (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
     }
 
-    pub fn generate_signed_payment_transaction() -> TransactionRequest {
-        let kp_sender = keys([0; 32]).pop().unwrap();
-        let kp_receiver = keys([1; 32]).pop().unwrap();
-
+    pub fn generate_signed_payment_transaction(
+        kp_sender: &AccountKeyPair,
+        kp_receiver: &AccountKeyPair,
+    ) -> GDEXSignedTransaction {
         let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
-        let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-            kp_sender.public().clone(),
+        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
             kp_receiver.public().clone(),
             PRIMARY_ASSET_ID,
             10,
-            dummy_batch_digest,
         ));
+
+        let transaction = GDEXTransaction::new(
+            kp_sender.public().clone(),
+            dummy_batch_digest,
+            transaction_variant,
+        );
 
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        TransactionRequest::new(transaction, signed_digest)
+        GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest)
     }
 
     #[test]
-    // test that a signed payment transaction behaves as expected
-    fn create_signed_payment_transaction() {
+    // test that a transaction behaves as expected
+    fn transaction_properties() {
         let kp_sender = keys([0; 32]).pop().unwrap();
         let kp_receiver = keys([1; 32]).pop().unwrap();
-
-        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
-        let transaction = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-            kp_sender.public().clone(),
-            kp_receiver.public().clone(),
-            PRIMARY_ASSET_ID,
-            10,
-            dummy_batch_digest,
-        ));
-
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
-
-        let signed_transaction =
-            TransactionRequest::new(transaction.clone(), signed_digest.clone());
+        let signed_transaction = generate_signed_payment_transaction(&kp_sender, &kp_receiver);
+        let transaction = signed_transaction.get_transaction_payload();
+        let signed_digest = kp_sender.sign(transaction.digest().to_string().as_bytes());
 
         // perform transaction checks
 
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
 
-        let sender_pub_key = kp_sender.public().clone();
-        let receiver_pub_key = kp_receiver.public().clone();
         // verify deterministic hashing
         let transaction_hash_0 = transaction.digest();
         let transaction_hash_1 = transaction.digest();
@@ -280,22 +261,32 @@ pub mod transaction_tests {
             transaction_hash_0 == transaction_hash_1,
             "hashes appears to have violated determinism"
         );
-
-        assert!(
-            *signed_transaction.get_sender() == sender_pub_key,
-            "transaction sender does not match transaction input"
-        );
         assert!(
             signed_transaction.get_transaction_signature().clone() == signed_digest,
             "transaction sender does not match transaction input"
         );
+        assert!(
+            signed_transaction.get_transaction_payload().get_sender() == kp_sender.public(),
+            "transaction payload sender does not match transction input"
+        );
+        assert!(
+            signed_transaction
+                .get_transaction_payload()
+                .get_recent_batch_digest()
+                .to_string()
+                == BatchDigest::new([0; DIGEST_LEN]).to_string(),
+            "transaction payload batch digest does not match transaction input"
+        );
+    }
+    #[test]
 
-        assert!(matches!(
-            signed_transaction.get_transaction_payload(),
-            TransactionVariant::PaymentTransaction(_)
-        ));
-        let signed_transaction_payload_matched = match signed_transaction.get_transaction_payload()
-        {
+    // test that a signed payment transaction behaves as expected
+    fn signed_payment_transaction() {
+        let kp_sender = keys([0; 32]).pop().unwrap();
+        let kp_receiver = keys([1; 32]).pop().unwrap();
+        let signed_transaction = generate_signed_payment_transaction(&kp_sender, &kp_receiver);
+
+        let payment = match signed_transaction.get_transaction_payload().get_variant() {
             TransactionVariant::PaymentTransaction(r) => r,
             _ => {
                 panic!("An unexpected error occurred while reading the payment transaction");
@@ -303,19 +294,15 @@ pub mod transaction_tests {
         };
 
         assert!(
-            signed_transaction_payload_matched.get_amount() == 10,
+            payment.get_amount() == 10,
             "transaction amount does not match transaction input"
         );
         assert!(
-            signed_transaction_payload_matched.get_asset_id() == PRIMARY_ASSET_ID,
+            payment.get_asset_id() == PRIMARY_ASSET_ID,
             "transaction asset id does not match transaction input"
         );
         assert!(
-            *signed_transaction_payload_matched.get_sender() == sender_pub_key,
-            "transaction from does not match transction input"
-        );
-        assert!(
-            *signed_transaction_payload_matched.get_receiver() == receiver_pub_key,
+            payment.get_receiver() == kp_receiver.public(),
             "transaction to does not match transction input"
         );
     }
@@ -326,119 +313,102 @@ pub mod transaction_tests {
 
         let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
-        let transaction = TransactionVariant::CreateAssetTransaction(CreateAssetRequest::new(
+        let transaction_variant = TransactionVariant::CreateAssetTransaction(CreateAssetRequest {});
+
+        let transaction = GDEXTransaction::new(
             kp_sender.public().clone(),
             dummy_batch_digest,
-        ));
-
+            transaction_variant,
+        );
         let transaction_digest = transaction.digest();
         let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
 
-        let signed_transaction =
-            TransactionRequest::new(transaction.clone(), signed_digest.clone());
+        let signed_transaction = GDEXSignedTransaction::new(
+            kp_sender.public().clone(),
+            transaction.clone(),
+            signed_digest.clone(),
+        );
 
         // check valid signature
         signed_transaction.verify_transaction().unwrap();
 
-        let sender_pub_key = kp_sender.public().clone();
-
-        let signed_transaction_payload_matched = match signed_transaction.get_transaction_payload()
-        {
+        // check we can unpack transaction as expected
+        let _create_asset = match signed_transaction.get_transaction_payload().get_variant() {
             TransactionVariant::CreateAssetTransaction(r) => r,
             _ => {
                 panic!("An unexpected error occurred while reading the payment transaction");
             }
         };
-
-        // verify deterministic hashing
-        let transaction_hash_0 = transaction.digest();
-        let transaction_hash_1 = transaction.digest();
-        assert!(
-            transaction_hash_0 == transaction_hash_1,
-            "hashes appears to have violated determinism"
-        );
-
-        assert!(
-            *signed_transaction.get_sender() == sender_pub_key,
-            "transaction sender does not match transaction input"
-        );
-        assert!(
-            *signed_transaction_payload_matched.get_sender() == sender_pub_key,
-            "transaction payload sender does not match transaction input"
-        );
     }
 
     #[test]
     fn test_serialize_deserialize() {
-        let signed_transaction = generate_signed_payment_transaction();
+        let kp_sender = keys([0; 32]).pop().unwrap();
+        let kp_receiver = keys([1; 32]).pop().unwrap();
+        let signed_transaction = generate_signed_payment_transaction(&kp_sender, &kp_receiver);
 
         // perform transaction checks
 
         let serialized = signed_transaction.serialize().unwrap();
         // check valid signature
-        let signed_transaction_deserialized: TransactionRequest =
-            TransactionRequest::deserialize(serialized).unwrap();
+        let signed_transaction_deserialized: GDEXSignedTransaction =
+            GDEXSignedTransaction::deserialize(serialized).unwrap();
 
+        // verify signed transaction matches previous values
         assert!(
-            *signed_transaction.get_sender() == *signed_transaction_deserialized.get_sender(),
-            "transaction sender does not match transaction input"
-        );
-        assert!(
-            signed_transaction.get_transaction_signature().clone()
+            signed_transaction.get_transaction_signature()
                 == signed_transaction_deserialized
-                    .get_transaction_signature()
-                    .clone(),
-            "transaction sender does not match transaction input"
+                    .get_transaction_signature(),
+            "signed transaction signature does not match after deserialize"
         );
 
-        assert!(matches!(
-            signed_transaction_deserialized.get_transaction_payload(),
-            TransactionVariant::PaymentTransaction(_)
-        ));
-        let matched_transaction_payload_deserialized =
-            match signed_transaction_deserialized.get_transaction_payload() {
-                TransactionVariant::PaymentTransaction(r) => r,
-                _ => {
-                    panic!("An unexpected error occurred while reading the payment transaction");
-                }
-            };
+        // verify transaction matches previous values
+        let transaction = signed_transaction.get_transaction_payload();
+        let transaction_deserialized = signed_transaction_deserialized.get_transaction_payload();
 
-        let matched_transaction_payload = match signed_transaction.get_transaction_payload() {
+        assert!(
+            transaction.digest() == transaction_deserialized.digest() ,
+            "transaction hash does not match after deserialize"
+        );
+
+                
+        assert!(
+            transaction.get_sender() == transaction_deserialized.get_sender(),
+            "transaction hash does not match"
+        );
+
+        // verify transaction variant matches previous values
+        let payment = match transaction.get_variant()
+        {
+            TransactionVariant::PaymentTransaction(r) => r,
+            _ => {
+                panic!("An unexpected error occurred while reading the payment transaction");
+            }
+        };
+        let payment_deserialized = match transaction_deserialized.get_variant()
+        {
             TransactionVariant::PaymentTransaction(r) => r,
             _ => {
                 panic!("An unexpected error occurred while reading the payment transaction");
             }
         };
 
-        // verify transactions
-        let transaction_hash_0 = signed_transaction.get_transaction_payload().digest();
-        let transaction_hash_1 = signed_transaction_deserialized
-            .get_transaction_payload()
-            .digest();
         assert!(
-            transaction_hash_0 == transaction_hash_1,
-            "hashes appears to have violated determinism"
+            payment_deserialized.get_amount()
+                == payment.get_amount(),
+            "transaction amount does not match transaction input"
         );
 
         assert!(
-            matched_transaction_payload.get_amount()
-                == matched_transaction_payload_deserialized.get_amount(),
+            payment_deserialized.get_asset_id()
+                == payment.get_asset_id(),
             "transaction amount does not match transaction input"
         );
+
         assert!(
-            matched_transaction_payload.get_asset_id()
-                == matched_transaction_payload_deserialized.get_asset_id(),
-            "transaction asset id does not match transaction input"
-        );
-        assert!(
-            *matched_transaction_payload.get_sender()
-                == *matched_transaction_payload_deserialized.get_sender(),
-            "transaction sender does not match transction input"
-        );
-        assert!(
-            *matched_transaction_payload.get_receiver()
-                == *matched_transaction_payload_deserialized.get_receiver(),
-            "transaction to does not match transction input"
+            payment_deserialized.get_receiver()
+                == payment.get_receiver(),
+            "transaction amount does not match transaction input"
         );
     }
 }
