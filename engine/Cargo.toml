@@ -1,0 +1,13 @@
+[package]
+name = "engine"
+version = "0.1.0"
+authors = []
+edition = "2018"
+
+[dependencies]
+bcs = "0.1.2"
+criterion = "0.3"
+workspace-hack = { path = "../workspace-hack" }
+rand = "0.8.4"
+serde = { version = "1.0.124", features = ["derive"] }
+types = { path = "../types" }
