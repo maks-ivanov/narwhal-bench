@@ -34,7 +34,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| obtain_arc_mutex_lock(&bank_controller))
     });
 
-    // test channels
+    // test channels by checking the speed to send 1_000 messages
     pub const DEFAULT_CHANNEL_SIZE: usize = 1_000;
 
     async fn init_channel_64(_bytes_sent: [u8; 64]) {
