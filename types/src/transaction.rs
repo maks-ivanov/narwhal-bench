@@ -3,7 +3,7 @@
 //! each valid transaction corresponds to a unique state transition within
 //! the space of allowable blockchain transitions
 //!
-use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest};
+use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
@@ -137,14 +137,6 @@ impl Hash for GDEXTransaction {
     }
 }
 
-#[derive(Debug)]
-pub enum GDEXSignedTransactionError {
-    InvalidSender(String),
-    FailedVerification(crypto::traits::Error),
-    Serialization(Box<bincode::ErrorKind>),
-    Deserialization(Box<bincode::ErrorKind>),
-}
-
 /// The SignedTransaction object is responsible for encoding
 /// a transaction payload and associated metadata which allows
 /// validation of sender logic
@@ -167,17 +159,17 @@ impl GDEXSignedTransaction {
         }
     }
 
-    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, GDEXSignedTransactionError> {
+    pub fn deserialize(byte_vec: Vec<u8>) -> Result<Self, SignedTransactionError> {
         match bincode::deserialize(&byte_vec[..]) {
             Ok(result) => Ok(result),
-            Err(err) => Err(GDEXSignedTransactionError::Deserialization(err)),
+            Err(err) => Err(SignedTransactionError::Deserialization(err)),
         }
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>, GDEXSignedTransactionError> {
+    pub fn serialize(&self) -> Result<Vec<u8>, SignedTransactionError> {
         match bincode::serialize(&self) {
             Ok(result) => Ok(result),
-            Err(err) => Err(GDEXSignedTransactionError::Serialization(err)),
+            Err(err) => Err(SignedTransactionError::Serialization(err)),
         }
     }
 
@@ -189,7 +181,7 @@ impl GDEXSignedTransaction {
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), GDEXSignedTransactionError> {
+    pub fn verify_transaction(&self) -> Result<(), SignedTransactionError> {
         let transaction_digest = self.transaction_payload.digest();
 
         match self.transaction_payload.get_sender().verify(
@@ -197,7 +189,7 @@ impl GDEXSignedTransaction {
             &self.transaction_signature,
         ) {
             Ok(_) => Ok(()),
-            Err(err) => Err(GDEXSignedTransactionError::FailedVerification(err)),
+            Err(err) => Err(SignedTransactionError::FailedVerification(err)),
         }
     }
 }
@@ -241,7 +233,41 @@ pub mod transaction_tests {
     }
 
     #[test]
-    // test that a transaction behaves as expected
+    // test that transaction returns expected fields, validates a good signature, and has deterministic hashing
+    fn fails_bad_signature() {
+        // generating a signed transaction payload
+        let kp_sender = keys([0; 32]).pop().unwrap();
+        let kp_receiver = keys([1; 32]).pop().unwrap();
+
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+            kp_receiver.public().clone(),
+            PRIMARY_ASSET_ID,
+            10,
+        ));
+
+        let transaction = GDEXTransaction::new(
+            kp_sender.public().clone(),
+            dummy_batch_digest,
+            transaction_variant,
+        );
+
+        // sign the wrong payload
+        let signed_digest = kp_sender.sign(dummy_batch_digest.to_string().as_bytes());
+
+        let signed_transaction = GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest);
+        let verify_result = signed_transaction.verify_transaction();
+
+        // check that verification fails
+        match verify_result {
+            Ok(_) => {panic!("An error is expected.");}
+            Err(SignedTransactionError::FailedVerification(_)) => { /* do nothing */}
+            _ => {panic!("An unexpected error occurred.")}
+        }
+    }
+
+    #[test]
+    // test that transaction returns expected fields, validates a good signature, and has deterministic hashing
     fn transaction_properties() {
         let kp_sender = keys([0; 32]).pop().unwrap();
         let kp_receiver = keys([1; 32]).pop().unwrap();
@@ -278,8 +304,8 @@ pub mod transaction_tests {
             "transaction payload batch digest does not match transaction input"
         );
     }
-    #[test]
 
+    #[test]
     // test that a signed payment transaction behaves as expected
     fn signed_payment_transaction() {
         let kp_sender = keys([0; 32]).pop().unwrap();
@@ -357,8 +383,7 @@ pub mod transaction_tests {
         // verify signed transaction matches previous values
         assert!(
             signed_transaction.get_transaction_signature()
-                == signed_transaction_deserialized
-                    .get_transaction_signature(),
+                == signed_transaction_deserialized.get_transaction_signature(),
             "signed transaction signature does not match after deserialize"
         );
 
@@ -367,26 +392,23 @@ pub mod transaction_tests {
         let transaction_deserialized = signed_transaction_deserialized.get_transaction_payload();
 
         assert!(
-            transaction.digest() == transaction_deserialized.digest() ,
+            transaction.digest() == transaction_deserialized.digest(),
             "transaction hash does not match after deserialize"
         );
 
-                
         assert!(
             transaction.get_sender() == transaction_deserialized.get_sender(),
             "transaction hash does not match"
         );
 
         // verify transaction variant matches previous values
-        let payment = match transaction.get_variant()
-        {
+        let payment = match transaction.get_variant() {
             TransactionVariant::PaymentTransaction(r) => r,
             _ => {
                 panic!("An unexpected error occurred while reading the payment transaction");
             }
         };
-        let payment_deserialized = match transaction_deserialized.get_variant()
-        {
+        let payment_deserialized = match transaction_deserialized.get_variant() {
             TransactionVariant::PaymentTransaction(r) => r,
             _ => {
                 panic!("An unexpected error occurred while reading the payment transaction");
@@ -394,20 +416,17 @@ pub mod transaction_tests {
         };
 
         assert!(
-            payment_deserialized.get_amount()
-                == payment.get_amount(),
+            payment_deserialized.get_amount() == payment.get_amount(),
             "transaction amount does not match transaction input"
         );
 
         assert!(
-            payment_deserialized.get_asset_id()
-                == payment.get_asset_id(),
+            payment_deserialized.get_asset_id() == payment.get_asset_id(),
             "transaction amount does not match transaction input"
         );
 
         assert!(
-            payment_deserialized.get_receiver()
-                == payment.get_receiver(),
+            payment_deserialized.get_receiver() == payment.get_receiver(),
             "transaction amount does not match transaction input"
         );
     }

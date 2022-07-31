@@ -67,15 +67,19 @@ pub enum DagError {
     ShuttingDown,
 }
 
+#[derive(Debug, Error)]
+pub enum BankError {
+    #[error("Account already exists")]
+    AccountCreation,
+    #[error("Failed to find account")]
+    AccountLookup,
+    #[error("Insufficent balance")]
+    PaymentRequest,
+}
+
 #[derive(Debug)]
-pub enum GDEXError {
-    AccountCreation(String),
-    AccountLookup(String),
-    BlockValidation(String),
-    PendingBlock(String),
-    OrderBookCreation(String),
-    OrderProc(String),
-    PaymentRequest(String),
-    Vote(String),
-    SignatureVer(String),
+pub enum SignedTransactionError {
+    FailedVerification(crypto::traits::Error),
+    Serialization(Box<bincode::ErrorKind>),
+    Deserialization(Box<bincode::ErrorKind>),
 }

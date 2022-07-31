@@ -15,8 +15,9 @@ use store::{
     Store,
 };
 use types::{
-    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate, Header,
-    PaymentRequest, SerializedBatchMessage, GDEXSignedTransaction, GDEXTransaction, TransactionVariant,
+    serialized_batch_digest, AccountKeyPair, Batch, BatchDigest, Certificate,
+    GDEXSignedTransaction, GDEXTransaction, Header, PaymentRequest, SerializedBatchMessage,
+    TransactionVariant,
 };
 
 use worker::WorkerMessage;

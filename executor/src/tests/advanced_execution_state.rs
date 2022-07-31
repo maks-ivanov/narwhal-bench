@@ -26,7 +26,7 @@ use test_utils::committee;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
 use types::{
-    AccountKeyPair, Batch, GDEXError, SequenceNumber, GDEXSignedTransaction, TransactionVariant,
+    AccountKeyPair, BankError, Batch, GDEXSignedTransaction, SequenceNumber, TransactionVariant,
 };
 use worker::WorkerMessage;
 
@@ -51,7 +51,7 @@ impl Default for AdvancedTestState {
 
 #[derive(Debug, Error)]
 pub enum AdvancedTestStateError {
-    VMError(GDEXError),
+    VMError(#[from] BankError),
 }
 impl Display for AdvancedTestStateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
