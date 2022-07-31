@@ -89,27 +89,27 @@ fn criterion_benchmark(c: &mut Criterion) {
             .iter(|| init_channel_64(black_box([0 as u8; 64])))
     });
 
-    c.bench_function("send_channel_64", move |b| {
+    c.bench_function("send_channel_64_1_000", move |b| {
         b.to_async(Runtime::new().unwrap())
             .iter(|| send_channel_64(black_box([0 as u8; 64])))
     });
 
-    c.bench_function("send_and_receive_channel_64", move |b| {
+    c.bench_function("send_and_receive_channel_64_1_000", move |b| {
         b.to_async(Runtime::new().unwrap())
             .iter(|| send_and_receive_channel_64(black_box([0 as u8; 64])))
     });
 
-    c.bench_function("init_channel_512", move |b| {
+    c.bench_function("init_channel_512_1_000", move |b| {
         b.to_async(Runtime::new().unwrap())
             .iter(|| init_channel_512(black_box([0 as u8; 512])))
     });
 
-    c.bench_function("send_channel_512", move |b| {
+    c.bench_function("send_channel_512_1_000", move |b| {
         b.to_async(Runtime::new().unwrap())
             .iter(|| send_channel_512(black_box([0 as u8; 512])))
     });
 
-    c.bench_function("send_and_receive_channel_512", move |b| {
+    c.bench_function("send_and_receive_channel_512_1_000", move |b| {
         b.to_async(Runtime::new().unwrap())
             .iter(|| send_and_receive_channel_512(black_box([0 as u8; 512])))
     });
