@@ -47,7 +47,7 @@ impl BankController {
     fn check_account_exists(&self, account_pub_key: &AccountPubKey) -> Result<(), BankError> {
         self.bank_accounts
             .get(account_pub_key)
-            .ok_or_else(|| BankError::AccountLookup)?;
+            .ok_or(BankError::AccountLookup)?;
         Ok(())
     }
 
@@ -85,7 +85,7 @@ impl BankController {
         let bank_account = self
             .bank_accounts
             .get(account_pub_key)
-            .ok_or_else(|| BankError::AccountLookup)?;
+            .ok_or(BankError::AccountLookup)?;
         Ok(*bank_account.get_balances().get(&asset_id).unwrap_or(&0))
     }
 
@@ -98,7 +98,7 @@ impl BankController {
         let bank_account = self
             .bank_accounts
             .get_mut(account_pub_key)
-            .ok_or_else(|| BankError::AccountLookup)?;
+            .ok_or(BankError::AccountLookup)?;
         let prev_amount: i64 = *bank_account.get_balances().get(&asset_id).unwrap_or(&0) as i64;
         // return error if insufficient user balance
         if (prev_amount + amount) < 0 {

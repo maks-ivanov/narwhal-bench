@@ -45,7 +45,9 @@ pub struct CreateAssetRequest {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TransactionVariant {
+    #[allow(clippy::large_enum_variant)]
     PaymentTransaction(PaymentRequest),
+    #[allow(clippy::large_enum_variant)]
     CreateAssetTransaction(CreateAssetRequest),
 }
 
