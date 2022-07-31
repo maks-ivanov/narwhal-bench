@@ -6,6 +6,7 @@
 #[rustfmt::skip]
 mod narwhal;
 
+use super::GDEXSignedTransaction;
 use std::{array::TryFromSliceError, ops::Deref};
 
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
 };
 use bytes::{Buf, Bytes};
 use crypto::traits::VerifyingKey;
+use crypto::Hash;
 
 pub use narwhal::{
     collection_retrieval_result::RetrievalResult,
@@ -73,17 +75,18 @@ impl From<Batch> for BatchProto {
 impl From<Transaction> for TransactionProto {
     fn from(transaction: Transaction) -> Self {
         TransactionProto {
-            transaction: Bytes::from(transaction),
+            // transaction: Bytes::from(transaction.get_transaction_payload().digest().to_string().as_bytes()),
+            transaction: transaction.serialize().unwrap().into()//Bytes::from(transaction.get_transaction_payload().digest().to_string().as_bytes()),
         }
     }
 }
 
 impl From<BatchProto> for Batch {
     fn from(batch: BatchProto) -> Self {
-        let transactions: Vec<Vec<u8>> = batch
+        let transactions = batch
             .transaction
             .into_iter()
-            .map(|t| t.transaction.to_vec())
+            .map(|t| GDEXSignedTransaction::deserialize(t.transaction.to_vec()).unwrap())
             .collect();
         Batch(transactions)
     }

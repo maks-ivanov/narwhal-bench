@@ -12,7 +12,7 @@ type AssetId = u64;
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PaymentRequest {
     receiver: AccountPubKey,
     asset_id: AssetId,
@@ -40,10 +40,10 @@ impl PaymentRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CreateAssetRequest {}
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum TransactionVariant {
     #[allow(clippy::large_enum_variant)]
     PaymentTransaction(PaymentRequest),
@@ -53,7 +53,7 @@ pub enum TransactionVariant {
 
 /// A transaction for creating a new asset in the BankController
 /// GDEX prefix is added because Narwal github contains a Transaction type
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct GDEXTransaction {
     // storing from here is not redundant as from may not equal sender
     // e.g. we are preserving the possibility of adding re-key functionality
@@ -142,7 +142,7 @@ impl Hash for GDEXTransaction {
 /// The SignedTransaction object is responsible for encoding
 /// a transaction payload and associated metadata which allows
 /// validation of sender logic
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct GDEXSignedTransaction {
     sender: AccountPubKey,
     transaction_payload: GDEXTransaction,

@@ -6,6 +6,7 @@ use crate::{
     BatchDigestProto, CertificateDigestProto,
 };
 use blake2::{digest::Update, VarBlake2b};
+
 use bytes::Bytes;
 use config::{Committee, Epoch, WorkerId};
 use crypto::{
@@ -14,19 +15,19 @@ use crypto::{
 };
 use dag::node_dag::Affiliated;
 use derive_builder::Builder;
-use proptest_derive::Arbitrary;
+// use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fmt,
     fmt::Formatter,
 };
-
+use super::GDEXSignedTransaction;
 /// The round number.
 pub type Round = u64;
 
-pub type Transaction = Vec<u8>;
-#[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq, Arbitrary)]
+pub type Transaction = GDEXSignedTransaction;
+#[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
 pub struct Batch(pub Vec<Transaction>);
 
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -69,7 +70,7 @@ impl Hash for Batch {
 
     fn digest(&self) -> Self::TypedDigest {
         BatchDigest::new(crypto::blake2b_256(|hasher| {
-            self.0.iter().for_each(|tx| hasher.update(tx))
+            self.0.iter().for_each(|tx| hasher.update(tx.get_transaction_payload().digest().to_string().as_bytes()))
         }))
     }
 }
