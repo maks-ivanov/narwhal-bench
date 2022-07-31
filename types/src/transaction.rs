@@ -255,14 +255,19 @@ pub mod transaction_tests {
         // sign the wrong payload
         let signed_digest = kp_sender.sign(dummy_batch_digest.to_string().as_bytes());
 
-        let signed_transaction = GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest);
+        let signed_transaction =
+            GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest);
         let verify_result = signed_transaction.verify_transaction();
 
         // check that verification fails
         match verify_result {
-            Ok(_) => {panic!("An error is expected.");}
-            Err(SignedTransactionError::FailedVerification(_)) => { /* do nothing */}
-            _ => {panic!("An unexpected error occurred.")}
+            Ok(_) => {
+                panic!("An error is expected.");
+            }
+            Err(SignedTransactionError::FailedVerification(_)) => { /* do nothing */ }
+            _ => {
+                panic!("An unexpected error occurred.")
+            }
         }
     }
 
