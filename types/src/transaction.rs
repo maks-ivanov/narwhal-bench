@@ -196,43 +196,44 @@ impl GDEXSignedTransaction {
     }
 }
 
+
+pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
+    let mut rng = StdRng::from_seed(seed);
+    (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
+}
+
+use crypto::traits::KeyPair;
+use crypto::traits::Signer;
+use rand::{rngs::StdRng, SeedableRng};
+const PRIMARY_ASSET_ID: u64 = 0;
+
+pub fn generate_signed_payment_transaction(
+    kp_sender: &AccountKeyPair,
+    kp_receiver: &AccountKeyPair,
+) -> GDEXSignedTransaction {
+    let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+        kp_receiver.public().clone(),
+        PRIMARY_ASSET_ID,
+        10,
+    ));
+
+    let transaction = GDEXTransaction::new(
+        kp_sender.public().clone(),
+        dummy_batch_digest,
+        transaction_variant,
+    );
+
+    let transaction_digest = transaction.digest();
+    let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+
+    GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest)
+}
+
 // #[cfg(test)]
 pub mod transaction_tests {
     use super::*;
 
-    use crypto::traits::KeyPair;
-    use crypto::traits::Signer;
-    use rand::{rngs::StdRng, SeedableRng};
-
-    const PRIMARY_ASSET_ID: u64 = 0;
-
-    pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
-        let mut rng = StdRng::from_seed(seed);
-        (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
-    }
-
-    pub fn generate_signed_payment_transaction(
-        kp_sender: &AccountKeyPair,
-        kp_receiver: &AccountKeyPair,
-    ) -> GDEXSignedTransaction {
-        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
-        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-            kp_receiver.public().clone(),
-            PRIMARY_ASSET_ID,
-            10,
-        ));
-
-        let transaction = GDEXTransaction::new(
-            kp_sender.public().clone(),
-            dummy_batch_digest,
-            transaction_variant,
-        );
-
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
-
-        GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest)
-    }
 
     #[test]
     // test that transaction returns expected fields, validates a good signature, and has deterministic hashing

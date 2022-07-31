@@ -75,8 +75,7 @@ impl From<Batch> for BatchProto {
 impl From<Transaction> for TransactionProto {
     fn from(transaction: Transaction) -> Self {
         TransactionProto {
-            // transaction: Bytes::from(transaction.get_transaction_payload().digest().to_string().as_bytes()),
-            transaction: transaction.serialize().unwrap().into()//Bytes::from(transaction.get_transaction_payload().digest().to_string().as_bytes()),
+            transaction: transaction.serialize().unwrap().into()
         }
     }
 }
