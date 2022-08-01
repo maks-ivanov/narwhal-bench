@@ -205,8 +205,8 @@ impl GDEXSignedTransaction {
 #[cfg(test)]
 pub mod transaction_tests {
     use super::*;
-    
-    use crate::{AccountKeyPair};
+
+    use crate::AccountKeyPair;
     use crypto::traits::{KeyPair, Signer};
     use rand::{rngs::StdRng, SeedableRng};
 

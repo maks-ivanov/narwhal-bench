@@ -2,14 +2,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::{Context, Result};
-use bytes::{BufMut as _, BytesMut};
 use clap::{crate_name, crate_version, App, AppSettings};
 use crypto::{
     traits::{KeyPair, Signer},
     Hash, DIGEST_LEN,
 };
 use futures::{future::join_all, StreamExt};
-use rand::{Rng, rngs::StdRng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::{
     net::TcpStream,
     time::{interval, sleep, Duration, Instant},
@@ -17,8 +16,8 @@ use tokio::{
 use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
 use types::{
-    AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, GDEXSignedTransaction,
-    GDEXTransaction, PaymentRequest, SignedTransactionError, TransactionProto, TransactionVariant,
+    AccountKeyPair, AccountSignature, BatchDigest, GDEXSignedTransaction,
+    GDEXTransaction, PaymentRequest, TransactionProto, TransactionVariant,
     TransactionsClient,
 };
 use url::Url;
@@ -29,25 +28,28 @@ fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
     (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
 }
 
-fn generate_dummy_signed_digest(kp_sender: &AccountKeyPair, kp_receiver: &AccountKeyPair) -> AccountSignature {
-        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-            kp_receiver.public().clone(),
-            PRIMARY_ASSET_ID,
-            10,
-        ));
+fn generate_dummy_signed_digest(
+    kp_sender: &AccountKeyPair,
+    kp_receiver: &AccountKeyPair,
+) -> AccountSignature {
+    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+        kp_receiver.public().clone(),
+        PRIMARY_ASSET_ID,
+        1,
+    ));
 
-        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+    let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
-        let transaction = GDEXTransaction::new(
-            kp_sender.public().clone(),
-            dummy_batch_digest,
-            transaction_variant,
-        );
-        let transaction_digest = transaction.digest();
+    let transaction = GDEXTransaction::new(
+        kp_sender.public().clone(),
+        dummy_batch_digest,
+        transaction_variant,
+    );
+    let transaction_digest = transaction.digest();
 
-        // generate the signed digest for repeated use
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
-        signed_digest
+    // generate the signed digest for repeated use
+    let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+    signed_digest
 }
 
 #[tokio::main]
@@ -166,66 +168,45 @@ impl Client {
 
             // generate the signed digest for repeated use
             let dummy_signed_digest = generate_dummy_signed_digest(&kp_sender, &kp_receiver);
-            
+
             // generate a dummy digest for repeated use
             let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
+            // clone the public key to prep it for freeing in the move statement below
             let public_sender = kp_sender.public().clone();
 
-
             let stream = tokio_stream::iter(0..burst).map(move |x| {
-                if x == counter % burst {
-                    // NOTE: This log entry is used to compute performance.
-                    info!("Sending sample transaction {counter}");
-                    let transaction_variant =
-                        TransactionVariant::PaymentTransaction(PaymentRequest::new(
-                            public_sender.clone(),
-                            PRIMARY_ASSET_ID,
-                            counter,
-                        ));
-
-                    let transaction = GDEXTransaction::new(
-                        public_sender.clone(),
-                        dummy_batch_digest,
-                        transaction_variant,
-                    );
-
-                    let signed_transaction = GDEXSignedTransaction::new(
-                        public_sender.clone(),
-                        transaction.clone(),
-                        dummy_signed_digest.clone(),
-                    );
-                    counter += 1;
-                    return TransactionProto {
-                        transaction: signed_transaction.serialize().unwrap().into(),
-                    };
+                let amount = if x == counter % burst {
+                    counter
                 } else {
                     r += 1;
-                    let transaction_variant =
-                        TransactionVariant::PaymentTransaction(PaymentRequest::new(
-                            public_sender.clone(),
-                            PRIMARY_ASSET_ID,
-                            r,
-                        ));
-
-                    let transaction = GDEXTransaction::new(
-                        public_sender.clone(),
-                        dummy_batch_digest,
-                        transaction_variant,
-                    );
-
-                    let signed_transaction = GDEXSignedTransaction::new(
-                        public_sender.clone(),
-                        transaction.clone(),
-                        dummy_signed_digest.clone(),
-                    );            
-                    
-                    let dummy_signed_digest = generate_dummy_signed_digest(&kp_sender, &kp_receiver);
-                    counter += 1;
-                    return TransactionProto {
-                        transaction: signed_transaction.serialize().unwrap().into(),
-                    };
+                    r
                 };
+
+                let transaction_variant = TransactionVariant::PaymentTransaction(
+                    PaymentRequest::new(public_sender.clone(), PRIMARY_ASSET_ID, amount),
+                );
+                let transaction = GDEXTransaction::new(
+                    public_sender.clone(),
+                    dummy_batch_digest,
+                    transaction_variant,
+                );
+                let signed_transaction = GDEXSignedTransaction::new(
+                    public_sender.clone(),
+                    transaction.clone(),
+                    dummy_signed_digest.clone(),
+                );
+
+                // uncomment the below to prove to yourself that we are submitting serialized transactions
+                // signed_transaction.verify_transaction().unwrap();
+                
+                if x == counter % burst {
+                    println!("the checkpoint signed_transaction ={:?}", signed_transaction);
+                } 
+
+                TransactionProto {
+                    transaction: signed_transaction.serialize().unwrap().into(),
+                }
             });
 
             if let Err(e) = client.submit_transaction_stream(stream).await {
