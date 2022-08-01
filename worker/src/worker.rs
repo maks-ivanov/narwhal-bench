@@ -24,10 +24,10 @@ use tokio::{
 use tonic::{Request, Response, Status};
 use tracing::info;
 use types::{
-    error::DagError, BatchDigest, BincodeEncodedPayload, ClientBatchRequest, Empty,
+    error::DagError, BatchDigest, BincodeEncodedPayload, ClientBatchRequest, Empty, GDEXSignedTransaction,
     PrimaryToWorker, PrimaryToWorkerServer, ReconfigureNotification, SerializedBatchMessage,
     Transaction, TransactionProto, Transactions, TransactionsServer, WorkerPrimaryMessage,
-    WorkerToWorker, WorkerToWorkerServer,
+    WorkerToWorker, WorkerToWorkerServer, SERIALIZED_TRANSACTION_LENGTH
 };
 
 #[cfg(test)]
@@ -328,7 +328,33 @@ impl TxReceiverHandler {
             }
         })
     }
+
+    fn verify_incoming_transaction(serialized_transaction: Vec<u8>) -> Result<(), tonic::Status> {
+        // remove trailing zeros & deserialize transaction
+        let signed_transaction_result = GDEXSignedTransaction::deserialize(serialized_transaction);
+        
+        match signed_transaction_result {
+            Ok(signed_transaction) => {
+                match signed_transaction.verify_transaction() {
+                    Ok(_) => { 
+                        // transaction was successfully deserialized and the signature matched the payload
+                        Ok(())
+                    }
+                    // deserialization succeeded, but verification failed
+                    Err(_sig_error) => {
+                        Err(tonic::Status::unauthenticated("Failed to verify the transaction signature"))
+                    }
+                }
+            }
+            // deserialization failed
+            Err(_derserialize_err) => { 
+                Err(tonic::Status::invalid_argument("Failed to deserialize the transaction"))
+            }
+        }
+    }
 }
+
+    
 
 #[async_trait]
 impl Transactions for TxReceiverHandler {
@@ -354,7 +380,11 @@ impl Transactions for TxReceiverHandler {
         let mut transactions = request.into_inner();
 
         while let Some(Ok(txn)) = transactions.next().await {
-            // Send the transaction to the batch maker.
+            // remove the trailing zeros from the incoming transaction
+            let serialized_transaction = txn.transaction.to_vec().drain(..SERIALIZED_TRANSACTION_LENGTH).collect();
+            TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+
+            // Send the transaction to the batch maker. 
             self.tx_batch_maker
                 .send(txn.transaction.to_vec())
                 .await
