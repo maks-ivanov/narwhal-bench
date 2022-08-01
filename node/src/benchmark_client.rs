@@ -4,16 +4,51 @@
 use anyhow::{Context, Result};
 use bytes::{BufMut as _, BytesMut};
 use clap::{crate_name, crate_version, App, AppSettings};
+use crypto::{
+    traits::{KeyPair, Signer},
+    Hash, DIGEST_LEN,
+};
 use futures::{future::join_all, StreamExt};
-use rand::Rng;
+use rand::{Rng, rngs::StdRng, SeedableRng};
 use tokio::{
     net::TcpStream,
     time::{interval, sleep, Duration, Instant},
 };
 use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
-use types::{TransactionProto, TransactionsClient};
+use types::{
+    AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, GDEXSignedTransaction,
+    GDEXTransaction, PaymentRequest, SignedTransactionError, TransactionProto, TransactionVariant,
+    TransactionsClient,
+};
 use url::Url;
+const PRIMARY_ASSET_ID: u64 = 0;
+
+fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
+    let mut rng = StdRng::from_seed(seed);
+    (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
+}
+
+fn generate_dummy_signed_digest(kp_sender: &AccountKeyPair, kp_receiver: &AccountKeyPair) -> AccountSignature {
+        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+            kp_receiver.public().clone(),
+            PRIMARY_ASSET_ID,
+            10,
+        ));
+
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+
+        let transaction = GDEXTransaction::new(
+            kp_sender.public().clone(),
+            dummy_batch_digest,
+            transaction_variant,
+        );
+        let transaction_digest = transaction.digest();
+
+        // generate the signed digest for repeated use
+        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        signed_digest
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -114,7 +149,7 @@ impl Client {
         // Submit all transactions.
         let burst = self.rate / PRECISION;
         let mut counter = 0;
-        let mut r = rand::thread_rng().gen();
+        let mut r = rand::thread_rng().gen::<u64>();
         let interval = interval(Duration::from_millis(BURST_DURATION));
         tokio::pin!(interval);
 
@@ -125,19 +160,73 @@ impl Client {
             interval.as_mut().tick().await;
             let now = Instant::now();
 
+            // generate the keypairs
+            let kp_sender = keys([0; 32]).pop().unwrap();
+            let kp_receiver = keys([1; 32]).pop().unwrap();
+
+            // generate the signed digest for repeated use
+            let dummy_signed_digest = generate_dummy_signed_digest(&kp_sender, &kp_receiver);
+            
+            // generate a dummy digest for repeated use
+            let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+
+            let public_sender = kp_sender.public().clone();
+
+
             let mut tx = BytesMut::with_capacity(self.size);
             let size = self.size;
             let stream = tokio_stream::iter(0..burst).map(move |x| {
                 if x == counter % burst {
                     // NOTE: This log entry is used to compute performance.
                     info!("Sending sample transaction {counter}");
+                    let transaction_variant =
+                        TransactionVariant::PaymentTransaction(PaymentRequest::new(
+                            public_sender.clone(),
+                            PRIMARY_ASSET_ID,
+                            counter,
+                        ));
 
-                    tx.put_u8(0u8); // Sample txs start with 0.
-                    tx.put_u64(counter); // This counter identifies the tx.
+                    let transaction = GDEXTransaction::new(
+                        public_sender.clone(),
+                        dummy_batch_digest,
+                        transaction_variant,
+                    );
+
+                    let signed_transaction = GDEXSignedTransaction::new(
+                        public_sender.clone(),
+                        transaction.clone(),
+                        dummy_signed_digest.clone(),
+                    );
+                    return TransactionProto {
+                        transaction: signed_transaction.serialize().unwrap().into(),
+                    };
+                    // tx.put_u8(0u8); // Sample txs start with 0.
+                    // tx.put_u64(counter); // This counter identifies the tx.
                 } else {
                     r += 1;
-                    tx.put_u8(1u8); // Standard txs start with 1.
-                    tx.put_u64(r); // Ensures all clients send different txs.
+                    let transaction_variant =
+                        TransactionVariant::PaymentTransaction(PaymentRequest::new(
+                            public_sender.clone(),
+                            PRIMARY_ASSET_ID,
+                            r,
+                        ));
+
+                    let transaction = GDEXTransaction::new(
+                        public_sender.clone(),
+                        dummy_batch_digest,
+                        transaction_variant,
+                    );
+
+                    let signed_transaction = GDEXSignedTransaction::new(
+                        public_sender.clone(),
+                        transaction.clone(),
+                        dummy_signed_digest.clone(),
+                    );
+                    return TransactionProto {
+                        transaction: signed_transaction.serialize().unwrap().into(),
+                    };
+                    // tx.put_u8(1u8); // Standard txs start with 1.
+                    // tx.put_u64(r); // Ensures all clients send different txs.
                 };
 
                 tx.resize(size, 0u8);
