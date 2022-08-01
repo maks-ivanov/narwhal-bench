@@ -17,7 +17,7 @@ use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
 use types::{
     AccountKeyPair, BatchDigest, GDEXSignedTransaction, GDEXTransaction, PaymentRequest,
-    TransactionProto, TransactionVariant, TransactionsClient,
+    TransactionProto, TransactionVariant, TransactionsClient
 };
 use url::Url;
 const PRIMARY_ASSET_ID: u64 = 0;
@@ -37,7 +37,7 @@ fn create_signed_padded_transaction(
     let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
     let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-        kp_sender.public().clone(),
+        kp_receiver.public().clone(),
         PRIMARY_ASSET_ID,
         amount,
     ));
@@ -46,10 +46,10 @@ fn create_signed_padded_transaction(
         dummy_batch_digest,
         transaction_variant,
     );
-    let transaction_digest = transaction.digest();
+    // let digest_array = transaction.digest().get_array();
 
     // sign digest and create signed transaction
-    let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+    let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
     let signed_transaction = GDEXSignedTransaction::new(
         kp_sender.public().clone(),
         transaction.clone(),
@@ -188,6 +188,8 @@ impl Client {
 
             let stream = tokio_stream::iter(0..burst).map(move |x| {
                 let amount = if x == counter % burst {
+                    // NOTE: This log entry is used to compute performance.
+                    info!("Sending sample transaction {counter}");
                     counter
                 } else {
                     r += 1;
