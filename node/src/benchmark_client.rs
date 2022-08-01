@@ -17,7 +17,7 @@ use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
 use types::{
     AccountKeyPair, BatchDigest, GDEXSignedTransaction, GDEXTransaction, PaymentRequest,
-    TransactionProto, TransactionVariant, TransactionsClient
+    TransactionProto, TransactionVariant, TransactionsClient,
 };
 use url::Url;
 const PRIMARY_ASSET_ID: u64 = 0;
@@ -46,7 +46,6 @@ fn create_signed_padded_transaction(
         dummy_batch_digest,
         transaction_variant,
     );
-    // let digest_array = transaction.digest().get_array();
 
     // sign digest and create signed transaction
     let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
@@ -55,9 +54,6 @@ fn create_signed_padded_transaction(
         transaction.clone(),
         signed_digest,
     );
-
-    // uncomment below and make a bad signature to prove to yourself that we are submitting serialized transactions
-    // signed_transaction.verify_transaction().unwrap();
 
     // serialize the transaction for channel distribution and resize
     let mut padded_signed_transaction = signed_transaction.serialize().unwrap();

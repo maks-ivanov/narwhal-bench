@@ -111,7 +111,7 @@ impl TransactionDigest {
     }
 
     pub fn get_array(&self) -> [u8; DIGEST_LEN] {
-        return self.0
+        return self.0;
     }
 }
 
@@ -133,7 +133,7 @@ impl Hash for GDEXTransaction {
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
                     // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
-                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
@@ -141,7 +141,7 @@ impl Hash for GDEXTransaction {
                 let hasher_update = |hasher: &mut VarBlake2b| {
                     hasher.update(self.get_sender().0.to_bytes());
                     // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
-                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
@@ -196,10 +196,11 @@ impl GDEXSignedTransaction {
 
     pub fn verify_transaction(&self) -> Result<(), SignedTransactionError> {
         let transaction_digest_array = self.transaction_payload.digest().get_array();
-        match self.transaction_payload.get_sender().verify(
-            &transaction_digest_array[..],
-            &self.transaction_signature,
-        ) {
+        match self
+            .transaction_payload
+            .get_sender()
+            .verify(&transaction_digest_array[..], &self.transaction_signature)
+        {
             Ok(_) => Ok(()),
             Err(err) => Err(SignedTransactionError::FailedVerification(err)),
         }

@@ -62,6 +62,10 @@ impl BatchDigest {
     pub fn new(val: [u8; DIGEST_LEN]) -> BatchDigest {
         BatchDigest(val)
     }
+
+    pub fn get_array(&self) -> [u8; DIGEST_LEN] {
+        return self.0;
+    }
 }
 
 impl Hash for Batch {
