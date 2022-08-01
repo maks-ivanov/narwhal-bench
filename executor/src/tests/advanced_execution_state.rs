@@ -1,3 +1,5 @@
+// Copyright (c) 2022, BTI
+// SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::{
     fixtures::{
@@ -46,29 +48,6 @@ impl std::fmt::Debug for AdvancedTestState {
 impl Default for AdvancedTestState {
     fn default() -> Self {
         Self::new(tempfile::tempdir().unwrap().path())
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum AdvancedTestStateError {
-    VMError(#[from] BankError),
-}
-impl Display for AdvancedTestStateError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", self)
-    }
-}
-
-#[async_trait]
-impl ExecutionStateError for AdvancedTestStateError {
-    fn node_error(&self) -> bool {
-        match self {
-            Self::VMError(_) => true,
-        }
-    }
-
-    fn to_string(&self) -> String {
-        ToString::to_string(&self)
     }
 }
 
@@ -155,6 +134,30 @@ impl AdvancedTestState {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum AdvancedTestStateError {
+    VMError(#[from] BankError),
+}
+impl Display for AdvancedTestStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self)
+    }
+}
+
+#[async_trait]
+impl ExecutionStateError for AdvancedTestStateError {
+    fn node_error(&self) -> bool {
+        match self {
+            Self::VMError(_) => true,
+        }
+    }
+
+    fn to_string(&self) -> String {
+        ToString::to_string(&self)
+    }
+}
+
+/// Begin testing suite for advanced execution state
 #[tokio::test]
 async fn execute_advanced_transactions() {
     let (tx_executor, rx_executor) = channel(10);

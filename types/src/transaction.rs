@@ -1,14 +1,16 @@
-//!
-//! The transaction class is responsible for parsing client interactions
-//! each valid transaction corresponds to a unique state transition within
-//! the space of allowable blockchain transitions
-//!
+// Copyright (c) 2022, BTI
+// SPDX-License-Identifier: Apache-2.0
+// The transaction class is responsible for parsing client interactions
+// each valid transaction corresponds to a unique state transition within
+// the space of allowable blockchain transitions
+//
 use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
+
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
@@ -18,6 +20,7 @@ pub struct PaymentRequest {
     asset_id: AssetId,
     amount: u64,
 }
+
 impl PaymentRequest {
     pub fn new(receiver: AccountPubKey, asset_id: AssetId, amount: u64) -> Self {
         PaymentRequest {
@@ -90,6 +93,7 @@ impl GDEXTransaction {
         &self.variant
     }
 }
+
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TransactionDigest([u8; DIGEST_LEN]);
 
@@ -122,7 +126,7 @@ impl Hash for GDEXTransaction {
                     hasher.update(payment.get_receiver().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
-                    // can we avoid turning into a string first?
+                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
                     hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
@@ -130,7 +134,7 @@ impl Hash for GDEXTransaction {
             TransactionVariant::CreateAssetTransaction(_create_asset) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
                     hasher.update(self.get_sender().0.to_bytes());
-                    // can we avoid turning into a string first?
+                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
                     hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
@@ -148,6 +152,7 @@ pub struct GDEXSignedTransaction {
     transaction_payload: GDEXTransaction,
     transaction_signature: AccountSignature,
 }
+
 impl GDEXSignedTransaction {
     pub fn new(
         sender: AccountPubKey,
@@ -196,7 +201,8 @@ impl GDEXSignedTransaction {
     }
 }
 
-// #[cfg(test)]
+/// Begin the testing suite for transactions
+#[cfg(test)]
 pub mod transaction_tests {
     use super::*;
 

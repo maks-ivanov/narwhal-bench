@@ -3676,6 +3676,7 @@ dependencies = [
  "criterion",
  "crypto",
  "proc",
+ "rand 0.7.3",
  "tokio",
  "types",
  "workspace-hack",

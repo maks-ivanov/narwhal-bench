@@ -79,7 +79,7 @@ pub fn test_u64_certificates(
             let payload: BTreeMap<_, _> = batches
                 .iter()
                 .enumerate()
-                .map(|(i, (digest, _))| (*digest, /* worker_id */ i as WorkerId))
+                .map(|(worker_id, (digest, _))| (*digest, worker_id as WorkerId))
                 .collect();
 
             let certificate = test_certificate(payload);

@@ -1,7 +1,8 @@
-//!
-//! account objects are attached to specific Controllers and are
-//! responsible for keeping important controller-specific data
-//!
+// Copyright (c) 2022, BTI
+// SPDX-License-Identifier: Apache-2.0
+//
+// account objects are attached to specific Controllers and are
+// responsible for keeping important controller-specific data
 use std::{collections::HashMap, fmt::Debug};
 use types::{AccountBalance, AccountPubKey, AssetId};
 
@@ -13,6 +14,7 @@ pub struct BankAccount {
     account_pub_key: AccountPubKey,
     balances: HashMap<AssetId, AccountBalance>,
 }
+
 impl BankAccount {
     pub fn new(account_pub_key: AccountPubKey) -> Self {
         BankAccount {

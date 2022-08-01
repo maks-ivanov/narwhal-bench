@@ -1,4 +1,4 @@
-// Copyright (c) 2022, Mysten Labs, Inc.
+// Copyright (c) 2022, BTI
 // SPDX-License-Identifier: Apache-2.0
 // to run this code, run cargo bench mutex_lock, for ex.
 // TODO - cleanup this benchmark file
@@ -12,14 +12,21 @@ use crypto::traits::Signer;
 use crypto::Hash;
 use crypto::DIGEST_LEN;
 use proc::bank::BankController;
+use rand::{rngs::StdRng, SeedableRng};
 use std::sync::{Arc, Mutex};
 use tokio::{
     runtime::Runtime,
     sync::mpsc::{channel, Receiver, Sender},
 };
 use types::{
-    keys, BatchDigest, GDEXSignedTransaction, GDEXTransaction, PaymentRequest, TransactionVariant,
+    AccountKeyPair, BatchDigest, GDEXSignedTransaction, GDEXTransaction, PaymentRequest,
+    TransactionVariant,
 };
+
+pub fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
+    let mut rng = StdRng::from_seed(seed);
+    (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
+}
 
 fn criterion_benchmark(c: &mut Criterion) {
     // test mutex

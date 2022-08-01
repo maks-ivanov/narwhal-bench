@@ -1,13 +1,14 @@
-//!
-//! this controller is responsible for managing user balances
-//! note, other controllers that rely on balance info will consume this
-//!
-//! TODO
-//! 0.) ADD MISSING FEATURES TO ASSET WORKFLOW, LIKE OWNER TOKEN MINTING, VARIABLE INITIAL MINT AMT., ...
-//! 1.) MAKE ROBUST ERROR HANDLING FOR ALL FUNCTIONS ~~ DONE
-//! 2.) ADD OWNER FUNCTIONS
-//! 3.) BETTER BANK ACCOUNT PUB KEY HANDLING SYSTEM & ADDRESS
-//!
+// Copyright (c) 2022, BTI
+// SPDX-License-Identifier: Apache-2.0
+//
+// this controller is responsible for managing user balances
+// note, other controllers that rely on balance info will consume this
+//
+// TODO
+// 0.) ADD MISSING FEATURES TO ASSET WORKFLOW, LIKE OWNER TOKEN MINTING, VARIABLE INITIAL MINT AMT., ...
+// 1.) MAKE ROBUST ERROR HANDLING FOR ALL FUNCTIONS ~~ DONE
+// 2.) ADD OWNER FUNCTIONS
+// 3.) BETTER BANK ACCOUNT PUB KEY HANDLING SYSTEM & ADDRESS
 extern crate types;
 
 use super::account::BankAccount;
@@ -23,6 +24,7 @@ pub struct BankController {
     bank_accounts: HashMap<AccountPubKey, BankAccount>,
     n_assets: u64,
 }
+
 impl BankController {
     pub fn new() -> Self {
         BankController {
@@ -31,6 +33,7 @@ impl BankController {
             n_assets: 0,
         }
     }
+
     pub fn create_account(&mut self, account_pub_key: &AccountPubKey) -> Result<(), BankError> {
         // do not allow double-creation of a single account
         if self.bank_accounts.contains_key(account_pub_key) {
@@ -66,7 +69,6 @@ impl BankController {
             self.n_assets,
             Asset {
                 asset_id: self.n_assets,
-                asset_addr: self.n_assets,
                 owner_pubkey: owner_pub_key.clone(),
             },
         );
