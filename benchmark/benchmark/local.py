@@ -85,7 +85,7 @@ class LocalBench:
                         rate_share,
                         [x for y in workers_addresses for _, x in y]
                     )
-                    print('client start cmd=', cmd)
+                    Print.info('Starting benchmark client with cmd=', cmd)
                     log_file = PathMaker.client_log_file(i, id)
                     self._background_run(cmd, log_file)
 
@@ -98,7 +98,7 @@ class LocalBench:
                     PathMaker.parameters_file(),
                     debug=debug
                 )
-                print('primary start cmd=', cmd)
+                Print.info('Starting Primary with cmd=', cmd)
                 log_file = PathMaker.primary_log_file(i)
                 self._background_run(cmd, log_file)
 
@@ -114,7 +114,7 @@ class LocalBench:
                         debug=debug
                     )
                     log_file = PathMaker.worker_log_file(i, id)
-                    print('worker start cmd=', cmd)
+                    Print.info('Starting Worker with cmd=', cmd)
                     self._background_run(cmd, log_file)
 
             # Wait for all transactions to be processed.
