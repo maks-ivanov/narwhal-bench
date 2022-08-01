@@ -3674,8 +3674,10 @@ name = "suite"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "crypto",
  "proc",
  "tokio",
+ "types",
  "workspace-hack",
 ]
 
