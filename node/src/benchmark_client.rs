@@ -173,8 +173,6 @@ impl Client {
             let public_sender = kp_sender.public().clone();
 
 
-            let mut tx = BytesMut::with_capacity(self.size);
-            let size = self.size;
             let stream = tokio_stream::iter(0..burst).map(move |x| {
                 if x == counter % burst {
                     // NOTE: This log entry is used to compute performance.
@@ -197,11 +195,10 @@ impl Client {
                         transaction.clone(),
                         dummy_signed_digest.clone(),
                     );
+                    counter += 1;
                     return TransactionProto {
                         transaction: signed_transaction.serialize().unwrap().into(),
                     };
-                    // tx.put_u8(0u8); // Sample txs start with 0.
-                    // tx.put_u64(counter); // This counter identifies the tx.
                 } else {
                     r += 1;
                     let transaction_variant =
@@ -221,17 +218,14 @@ impl Client {
                         public_sender.clone(),
                         transaction.clone(),
                         dummy_signed_digest.clone(),
-                    );
+                    );            
+                    
+                    let dummy_signed_digest = generate_dummy_signed_digest(&kp_sender, &kp_receiver);
+                    counter += 1;
                     return TransactionProto {
                         transaction: signed_transaction.serialize().unwrap().into(),
                     };
-                    // tx.put_u8(1u8); // Standard txs start with 1.
-                    // tx.put_u64(r); // Ensures all clients send different txs.
                 };
-
-                tx.resize(size, 0u8);
-                let bytes = tx.split().freeze();
-                TransactionProto { transaction: bytes }
             });
 
             if let Err(e) = client.submit_transaction_stream(stream).await {
