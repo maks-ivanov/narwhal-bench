@@ -1,0 +1,11 @@
+[package]
+name = "proc"
+version = "0.1.0"
+authors = []
+edition = "2018"
+
+[dependencies]
+rand = "0.7.0"
+criterion = "0.3"
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+types = { path = "../types" }

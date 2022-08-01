@@ -793,6 +793,7 @@ dependencies = [
  "clap 2.34.0",
  "criterion-plot",
  "csv",
+ "futures",
  "itertools",
  "lazy_static",
  "num-traits",
@@ -805,6 +806,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -1361,6 +1363,7 @@ dependencies = [
  "multiaddr",
  "mysten-network 0.1.0 (git+https://github.com/mystenlabs/mysten-infra.git?rev=123c9e40b529315e1c1d91a54fb717111c3e349c)",
  "primary",
+ "proc",
  "rand 0.7.3",
  "rocksdb",
  "serde",
@@ -2790,6 +2793,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "rand 0.7.3",
+ "types",
+ "workspace-hack",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3655,6 +3668,19 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "suite"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "crypto",
+ "proc",
+ "rand 0.7.3",
+ "tokio",
+ "types",
+ "workspace-hack",
+]
 
 [[package]]
 name = "symbolic-common"

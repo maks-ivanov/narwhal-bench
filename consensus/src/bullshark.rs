@@ -18,7 +18,7 @@ use types::{Certificate, CertificateDigest, ConsensusStore, Round, SequenceNumbe
 #[path = "tests/bullshark_tests.rs"]
 pub mod bullshark_tests;
 
-/// Processes proposed certificates and mutates a passed ConsensusState 
+/// Processes proposed certificates and mutates a passed ConsensusState
 /// writes to the historical state of the DAG in local store
 pub struct Bullshark<PublicKey: VerifyingKey> {
     /// The committee information.
