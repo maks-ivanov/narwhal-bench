@@ -175,6 +175,9 @@ impl Client {
             // clone the public key to prep it for freeing in the move statement below
             let public_sender = kp_sender.public().clone();
 
+            // copy into a new variablet o avoid we get lifetime errors in the stream
+            let size = self.size;
+
             let stream = tokio_stream::iter(0..burst).map(move |x| {
                 let amount = if x == counter % burst {
                     counter
@@ -204,8 +207,17 @@ impl Client {
                     println!("the checkpoint signed_transaction ={:?}", signed_transaction);
                 } 
 
+                // stuff the vector with zeros until it is length size
+                let mut tx_load = signed_transaction.serialize().unwrap();
+                assert!(tx_load.len() <= size, "please resize to a larger expected byte length");
+                let mut i = tx_load.len();
+                while i < size {
+                    tx_load.push(0);
+                    i += 1;
+                }
+
                 TransactionProto {
-                    transaction: signed_transaction.serialize().unwrap().into(),
+                    transaction: tx_load.into(),
                 }
             });
 
