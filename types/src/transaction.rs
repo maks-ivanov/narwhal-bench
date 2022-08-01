@@ -109,6 +109,10 @@ impl TransactionDigest {
     pub fn new(val: [u8; DIGEST_LEN]) -> TransactionDigest {
         TransactionDigest(val)
     }
+
+    pub fn get_array(&self) -> [u8; DIGEST_LEN] {
+        return self.0
+    }
 }
 
 impl From<TransactionDigest> for Digest {
@@ -191,10 +195,9 @@ impl GDEXSignedTransaction {
     }
 
     pub fn verify_transaction(&self) -> Result<(), SignedTransactionError> {
-        let transaction_digest = self.transaction_payload.digest();
-
+        let transaction_digest_array = self.transaction_payload.digest().get_array();
         match self.transaction_payload.get_sender().verify(
-            transaction_digest.to_string().as_bytes(),
+            &transaction_digest_array[..],
             &self.transaction_signature,
         ) {
             Ok(_) => Ok(()),
@@ -236,8 +239,7 @@ pub mod transaction_tests {
             transaction_variant,
         );
 
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest)
     }
@@ -288,7 +290,7 @@ pub mod transaction_tests {
         let kp_receiver = keys([1; 32]).pop().unwrap();
         let signed_transaction = generate_signed_payment_transaction(&kp_sender, &kp_receiver);
         let transaction = signed_transaction.get_transaction_payload();
-        let signed_digest = kp_sender.sign(transaction.digest().to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         // perform transaction checks
 
@@ -361,8 +363,7 @@ pub mod transaction_tests {
             dummy_batch_digest,
             transaction_variant,
         );
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         let signed_transaction = GDEXSignedTransaction::new(
             kp_sender.public().clone(),
