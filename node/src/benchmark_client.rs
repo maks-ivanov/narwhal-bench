@@ -16,7 +16,7 @@ use tokio::{
 use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
 use types::{
-    AccountKeyPair, AccountSignature, BatchDigest, GDEXSignedTransaction,
+    AccountKeyPair, BatchDigest, GDEXSignedTransaction,
     GDEXTransaction, PaymentRequest, TransactionProto, TransactionVariant,
     TransactionsClient,
 };
@@ -28,18 +28,18 @@ fn keys(seed: [u8; 32]) -> Vec<AccountKeyPair> {
     (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect()
 }
 
-fn generate_dummy_signed_digest(
+fn create_signed_padded_transaction(
     kp_sender: &AccountKeyPair,
     kp_receiver: &AccountKeyPair,
-) -> AccountSignature {
-    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-        kp_receiver.public().clone(),
-        PRIMARY_ASSET_ID,
-        1,
-    ));
-
+    amount: u64,
+    transmission_size: usize,
+) -> Vec<u8> {
+    // use a dummy batch digest for initial benchmarking
     let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
+    let transaction_variant = TransactionVariant::PaymentTransaction(
+        PaymentRequest::new(kp_sender.public().clone(), PRIMARY_ASSET_ID, amount),
+    );
     let transaction = GDEXTransaction::new(
         kp_sender.public().clone(),
         dummy_batch_digest,
@@ -47,9 +47,22 @@ fn generate_dummy_signed_digest(
     );
     let transaction_digest = transaction.digest();
 
-    // generate the signed digest for repeated use
+    // sign digest and create signed transaction
     let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
-    signed_digest
+    let signed_transaction = GDEXSignedTransaction::new(
+        kp_sender.public().clone(),
+        transaction.clone(),
+        signed_digest
+    );
+
+    // uncomment below and make a bad signature to prove to yourself that we are submitting serialized transactions
+    // signed_transaction.verify_transaction().unwrap();
+    
+    // serialize the transaction for channel distribution and resize
+    let mut padded_signed_transaction = signed_transaction.serialize().unwrap();                    
+    assert!(padded_signed_transaction.len() <= transmission_size, "please resize to a larger expected byte length");
+    padded_signed_transaction.resize(transmission_size, 0);
+    padded_signed_transaction
 }
 
 #[tokio::main]
@@ -166,15 +179,6 @@ impl Client {
             let kp_sender = keys([0; 32]).pop().unwrap();
             let kp_receiver = keys([1; 32]).pop().unwrap();
 
-            // generate the signed digest for repeated use
-            let dummy_signed_digest = generate_dummy_signed_digest(&kp_sender, &kp_receiver);
-
-            // generate a dummy digest for repeated use
-            let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
-
-            // clone the public key to prep it for freeing in the move statement below
-            let public_sender = kp_sender.public().clone();
-
             // copy into a new variablet o avoid we get lifetime errors in the stream
             let size = self.size;
 
@@ -186,38 +190,10 @@ impl Client {
                     r
                 };
 
-                let transaction_variant = TransactionVariant::PaymentTransaction(
-                    PaymentRequest::new(public_sender.clone(), PRIMARY_ASSET_ID, amount),
-                );
-                let transaction = GDEXTransaction::new(
-                    public_sender.clone(),
-                    dummy_batch_digest,
-                    transaction_variant,
-                );
-                let signed_transaction = GDEXSignedTransaction::new(
-                    public_sender.clone(),
-                    transaction.clone(),
-                    dummy_signed_digest.clone(),
-                );
-
-                // uncomment the below to prove to yourself that we are submitting serialized transactions
-                // signed_transaction.verify_transaction().unwrap();
-                
-                if x == counter % burst {
-                    println!("the checkpoint signed_transaction ={:?}", signed_transaction);
-                } 
-
-                // stuff the vector with zeros until it is length size
-                let mut tx_load = signed_transaction.serialize().unwrap();
-                assert!(tx_load.len() <= size, "please resize to a larger expected byte length");
-                let mut i = tx_load.len();
-                while i < size {
-                    tx_load.push(0);
-                    i += 1;
-                }
+                let signed_tranasction = create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, size);
 
                 TransactionProto {
-                    transaction: tx_load.into(),
+                    transaction: signed_tranasction.into(),
                 }
             });
 
