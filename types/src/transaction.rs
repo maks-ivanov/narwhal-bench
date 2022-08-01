@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
 
+pub const SERIALIZED_TRANSACTION_LENGTH: usize = 280;
+
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
 /// User A to User B provided User A has sufficient funds
