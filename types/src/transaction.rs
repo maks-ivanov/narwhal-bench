@@ -4,7 +4,7 @@
 // each valid transaction corresponds to a unique state transition within
 // the space of allowable blockchain transitions
 //
-use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
+use crate::{AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
@@ -205,9 +205,9 @@ impl GDEXSignedTransaction {
 #[cfg(test)]
 pub mod transaction_tests {
     use super::*;
-
-    use crypto::traits::KeyPair;
-    use crypto::traits::Signer;
+    
+    use crate::{AccountKeyPair};
+    use crypto::traits::{KeyPair, Signer};
     use rand::{rngs::StdRng, SeedableRng};
 
     const PRIMARY_ASSET_ID: u64 = 0;
