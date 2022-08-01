@@ -16,9 +16,8 @@ use tokio::{
 use tracing::{info, subscriber::set_global_default, warn};
 use tracing_subscriber::filter::EnvFilter;
 use types::{
-    AccountKeyPair, BatchDigest, GDEXSignedTransaction,
-    GDEXTransaction, PaymentRequest, TransactionProto, TransactionVariant,
-    TransactionsClient,
+    AccountKeyPair, BatchDigest, GDEXSignedTransaction, GDEXTransaction, PaymentRequest,
+    TransactionProto, TransactionVariant, TransactionsClient,
 };
 use url::Url;
 const PRIMARY_ASSET_ID: u64 = 0;
@@ -37,9 +36,11 @@ fn create_signed_padded_transaction(
     // use a dummy batch digest for initial benchmarking
     let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
-    let transaction_variant = TransactionVariant::PaymentTransaction(
-        PaymentRequest::new(kp_sender.public().clone(), PRIMARY_ASSET_ID, amount),
-    );
+    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+        kp_sender.public().clone(),
+        PRIMARY_ASSET_ID,
+        amount,
+    ));
     let transaction = GDEXTransaction::new(
         kp_sender.public().clone(),
         dummy_batch_digest,
@@ -52,15 +53,18 @@ fn create_signed_padded_transaction(
     let signed_transaction = GDEXSignedTransaction::new(
         kp_sender.public().clone(),
         transaction.clone(),
-        signed_digest
+        signed_digest,
     );
 
     // uncomment below and make a bad signature to prove to yourself that we are submitting serialized transactions
     // signed_transaction.verify_transaction().unwrap();
-    
+
     // serialize the transaction for channel distribution and resize
-    let mut padded_signed_transaction = signed_transaction.serialize().unwrap();                    
-    assert!(padded_signed_transaction.len() <= transmission_size, "please resize to a larger expected byte length");
+    let mut padded_signed_transaction = signed_transaction.serialize().unwrap();
+    assert!(
+        padded_signed_transaction.len() <= transmission_size,
+        "please resize to a larger expected byte length"
+    );
     padded_signed_transaction.resize(transmission_size, 0);
     padded_signed_transaction
 }
@@ -190,7 +194,8 @@ impl Client {
                     r
                 };
 
-                let signed_tranasction = create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, size);
+                let signed_tranasction =
+                    create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, size);
 
                 TransactionProto {
                     transaction: signed_tranasction.into(),
