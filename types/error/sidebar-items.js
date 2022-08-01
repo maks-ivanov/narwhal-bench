@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["DagError",""]],"type":[["DagResult",""]]};
+window.SIDEBAR_ITEMS = {"enum":[["BankError",""],["DagError",""],["SignedTransactionError",""]],"type":[["DagResult",""]]};

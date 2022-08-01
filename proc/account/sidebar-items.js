@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["BankAccount","BankAccount is consumed by the BankController the account contains a map of asset ids onto associated balances for the corersponding account"]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["CREATED_ASSET_BALANCE",""],["PRIMARY_ASSET_ID",""]],"struct":[["BankController",""]]};
