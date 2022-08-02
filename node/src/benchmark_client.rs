@@ -33,7 +33,7 @@ fn create_signed_padded_transaction(
     kp_receiver: &AccountKeyPair,
     amount: u64,
     transmission_size: usize,
-    do_real_transaction: bool
+    do_real_transaction: bool,
 ) -> Vec<u8> {
     if do_real_transaction {
         // use a dummy batch digest for initial benchmarking
@@ -205,8 +205,13 @@ impl Client {
                     r
                 };
 
-                let signed_tranasction =
-                    create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, /* transmission_size */ size, /* do_real_transaction */ true);
+                let signed_tranasction = create_signed_padded_transaction(
+                    &kp_sender,
+                    &kp_receiver,
+                    amount,
+                    /* transmission_size */ size,
+                    /* do_real_transaction */ true,
+                );
 
                 TransactionProto {
                     transaction: signed_tranasction.into(),
