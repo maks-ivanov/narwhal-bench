@@ -16,7 +16,7 @@ use crypto::{ed25519::Ed25519KeyPair, generate_production_keypair, traits::KeyPa
 use executor::{SerializedTransaction, SubscriberResult};
 use futures::future::join_all;
 use node::{
-    execution_state::SimpleExecutionState,
+    execution_state::AdvancedExecutionState,
     metrics::{primary_metrics_registry, start_prometheus_server, worker_metrics_registry},
     Node, NodeStorage,
 };
@@ -167,7 +167,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 &store,
                 parameters.clone(),
                 /* consensus */ !sub_matches.is_present("consensus-disabled"),
-                /* execution_state */ Arc::new(SimpleExecutionState),
+                /* execution_state */ Arc::new(AdvancedExecutionState::default()),
                 tx_transaction_confirmation,
                 &registry,
             )
