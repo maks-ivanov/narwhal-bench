@@ -132,7 +132,6 @@ impl Hash for GDEXTransaction {
                     hasher.update(payment.get_receiver().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
-                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
                     hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
@@ -140,7 +139,6 @@ impl Hash for GDEXTransaction {
             TransactionVariant::CreateAssetTransaction(_create_asset) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
                     hasher.update(self.get_sender().0.to_bytes());
-                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
                     hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
@@ -179,6 +177,12 @@ impl GDEXSignedTransaction {
         }
     }
 
+    pub fn deserialize_and_verify(byte_vec: Vec<u8>) -> Result<Self, SignedTransactionError> {
+        let deserialized_transaction = Self::deserialize(byte_vec)?;
+        deserialized_transaction.verify()?;
+        Ok(deserialized_transaction)
+    }
+
     pub fn serialize(&self) -> Result<Vec<u8>, SignedTransactionError> {
         match bincode::serialize(&self) {
             Ok(result) => Ok(result),
@@ -194,7 +198,7 @@ impl GDEXSignedTransaction {
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), SignedTransactionError> {
+    pub fn verify(&self) -> Result<(), SignedTransactionError> {
         let transaction_digest_array = self.transaction_payload.digest().get_array();
         match self
             .transaction_payload
@@ -270,7 +274,7 @@ pub mod transaction_tests {
 
         let signed_transaction =
             GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest);
-        let verify_result = signed_transaction.verify_transaction();
+        let verify_result = signed_transaction.verify();
 
         // check that verification fails
         match verify_result {
@@ -296,7 +300,7 @@ pub mod transaction_tests {
         // perform transaction checks
 
         // check valid signature
-        signed_transaction.verify_transaction().unwrap();
+        signed_transaction.verify().unwrap();
 
         // verify deterministic hashing
         let transaction_hash_0 = transaction.digest();
@@ -373,7 +377,7 @@ pub mod transaction_tests {
         );
 
         // check valid signature
-        signed_transaction.verify_transaction().unwrap();
+        signed_transaction.verify().unwrap();
 
         // check we can unpack transaction as expected
         let _create_asset = match signed_transaction.get_transaction_payload().get_variant() {

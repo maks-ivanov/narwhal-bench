@@ -11,10 +11,11 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::error;
+use tracing::{error};
 use types::{
-    error::DagError, serialized_batch_digest, Batch, BatchDigest, ReconfigureNotification, GDEXSignedTransaction,
-    SerializedBatchMessage, WorkerMessage, WorkerPrimaryMessage, SERIALIZED_TRANSACTION_LENGTH,
+    error::DagError, serialized_batch_digest, Batch, BatchDigest, GDEXSignedTransaction,
+    ReconfigureNotification, SerializedBatchMessage, WorkerMessage, WorkerPrimaryMessage,
+    SERIALIZED_TRANSACTION_LENGTH,
 };
 
 #[cfg(test)]
@@ -53,13 +54,11 @@ impl Processor {
                         match bincode::deserialize(&batch).unwrap() {
                             WorkerMessage::<PublicKey>::Batch(Batch(transactions)) => {
                                 for transaction_padded in transactions {
-                                    let serialized_transaction: Vec<u8> = transaction_padded.to_vec()
+                                    let serialized_transaction = transaction_padded.to_vec()
                                                                             .drain(..SERIALIZED_TRANSACTION_LENGTH)
                                                                             .collect();
                                     // TOOD - do not unwrap here...
-                                    let _transaction = GDEXSignedTransaction::deserialize(serialized_transaction).unwrap();
-                                    // TODO - verify signatures, ex below could work if we expose API
-                                    // TxReceiverHandler::verify_incoming_transaction(serialized_transaction).unwrap();
+                                    let _verified_transaction = GDEXSignedTransaction::deserialize_and_verify(serialized_transaction).unwrap();
                                 }
                             },
                             // TODO - error handle instead of panic

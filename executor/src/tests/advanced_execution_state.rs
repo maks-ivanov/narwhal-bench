@@ -179,18 +179,15 @@ async fn execute_advanced_transactions() {
         tx_output,
     );
 
-    // Feed a malformed transaction to the mock sequencer
+    // Feed a valid transaction to the mock sequencer
     let tx0 = create_signed_payment_transaction(
         execution_state.primary_manager.copy(),
         /* asset_id */ 0,
         /* amount */ 10,
     );
-    // let tx1 = create_signed_payment_transaction(execution_state.clone().primary_manager,/* asset_id */ 0, /* amount */ 100);
     let (digest, batch) = test_batch(vec![tx0]);
 
-    // verify we can deserialize objects in the batch
-
-    // git the consensus workers' batch message to retrieve a list of transactions.
+    // verify we can deserialize a batch
     let transactions = match bincode::deserialize(&batch).unwrap() {
         WorkerMessage::<Ed25519PublicKey>::Batch(Batch(x)) => x,
         _ => panic!("Error has occurred"),
@@ -198,7 +195,7 @@ async fn execute_advanced_transactions() {
 
     let serialized = &transactions.clone()[0];
 
-    // verify we can deserialize objects in the batch
+    // verify we can deserialize transactions in the deserialized batch
     let _transaction: GDEXSignedTransaction = bincode::deserialize(&serialized).unwrap();
 
     store.write(digest, batch).await;

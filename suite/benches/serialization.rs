@@ -31,7 +31,7 @@ fn verify_incoming_transaction(
 
     match signed_transaction_result {
         Ok(signed_transaction) => {
-            match signed_transaction.verify_transaction() {
+            match signed_transaction.verify() {
                 Ok(_) => {
                     // transaction was successfully deserialized and the signature matched the payload
                     Ok(())
