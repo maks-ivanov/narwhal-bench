@@ -2,6 +2,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::{Context, Result};
+use bytes::{BufMut as _, BytesMut};
 use clap::{crate_name, crate_version, App, AppSettings};
 use crypto::{
     traits::{KeyPair, Signer},
@@ -32,37 +33,46 @@ fn create_signed_padded_transaction(
     kp_receiver: &AccountKeyPair,
     amount: u64,
     transmission_size: usize,
+    do_real_transaction: bool
 ) -> Vec<u8> {
-    // use a dummy batch digest for initial benchmarking
-    let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
+    if do_real_transaction {
+        // use a dummy batch digest for initial benchmarking
+        let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
-    let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
-        kp_receiver.public().clone(),
-        PRIMARY_ASSET_ID,
-        amount,
-    ));
-    let transaction = GDEXTransaction::new(
-        kp_sender.public().clone(),
-        dummy_batch_digest,
-        transaction_variant,
-    );
+        let transaction_variant = TransactionVariant::PaymentTransaction(PaymentRequest::new(
+            kp_receiver.public().clone(),
+            PRIMARY_ASSET_ID,
+            amount,
+        ));
+        let transaction = GDEXTransaction::new(
+            kp_sender.public().clone(),
+            dummy_batch_digest,
+            transaction_variant,
+        );
 
-    // sign digest and create signed transaction
-    let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
-    let signed_transaction = GDEXSignedTransaction::new(
-        kp_sender.public().clone(),
-        transaction.clone(),
-        signed_digest,
-    );
+        // sign digest and create signed transaction
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
+        let signed_transaction = GDEXSignedTransaction::new(
+            kp_sender.public().clone(),
+            transaction.clone(),
+            signed_digest,
+        );
 
-    // serialize the transaction for channel distribution and resize
-    let mut padded_signed_transaction = signed_transaction.serialize().unwrap();
-    assert!(
-        padded_signed_transaction.len() <= transmission_size,
-        "please resize to a larger expected byte length"
-    );
-    padded_signed_transaction.resize(transmission_size, 0);
-    padded_signed_transaction
+        // serialize and resize the transaction for channel distribution
+        let mut padded_signed_transaction = signed_transaction.serialize().unwrap();
+        assert!(
+            padded_signed_transaction.len() <= transmission_size,
+            "please resize to a larger expected byte length"
+        );
+        padded_signed_transaction.resize(transmission_size, 0);
+        padded_signed_transaction
+    } else {
+        let mut tx = BytesMut::with_capacity(transmission_size);
+        tx.put_u8(0u8); // Sample txs start with 0.
+        tx.put_u64(amount); // This counter identifies the tx.
+        tx.resize(transmission_size, 0u8);
+        tx.into()
+    }
 }
 
 #[tokio::main]
@@ -137,6 +147,7 @@ async fn main() -> Result<()> {
     client.send().await.context("Failed to submit transactions")
 }
 
+/// TODO - add do_real_transaction as boolean field on client
 struct Client {
     target: Url,
     size: usize,
@@ -195,7 +206,7 @@ impl Client {
                 };
 
                 let signed_tranasction =
-                    create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, size);
+                    create_signed_padded_transaction(&kp_sender, &kp_receiver, amount, /* transmission_size */ size, /* do_real_transaction */ true);
 
                 TransactionProto {
                     transaction: signed_tranasction.into(),
