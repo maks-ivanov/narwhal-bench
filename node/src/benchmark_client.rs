@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
         size,
         rate,
         nodes,
-        is_advanced_execution
+        is_advanced_execution,
     };
 
     // Wait for all nodes to be online and synchronized.
