@@ -6,7 +6,7 @@ use crypto::traits::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Batch, BatchDigest};
+use crate::{Batch, BatchDigest, GDEXSignedTransaction};
 
 /// The message exchanged between workers.
 #[derive(Debug, Serialize, Deserialize)]
@@ -59,6 +59,8 @@ pub fn serialized_batch_digest<K: AsRef<[u8]>>(sbm: K) -> Result<BatchDigest, Di
 pub enum DigestError {
     #[error("Invalid argument: invalid byte at {0}")]
     InvalidArgumentError(usize),
+    #[error("Transaction failed deserialize")]
+    DeserializationError(),
 }
 
 fn read_one_transaction(sbm: &[u8], offset: usize) -> Result<(&[u8], usize), DigestError> {
@@ -70,4 +72,31 @@ fn read_one_transaction(sbm: &[u8], offset: usize) -> Result<(&[u8], usize), Dig
     let length = usize::try_from(length).map_err(|_| DigestError::InvalidArgumentError(offset))?;
     let end = offset + 8 + length;
     Ok((&sbm[offset + 8..end], end))
+}
+
+pub fn deserialize_batch<K: AsRef<[u8]>>(
+    sbm: K,
+) -> Result<Vec<GDEXSignedTransaction>, DigestError> {
+    let sbm = sbm.as_ref();
+    let mut offset = 4; // skip the enum variant selector
+    let num_transactions = u64::from_le_bytes(
+        sbm[offset..offset + 8]
+            .try_into()
+            .map_err(|_| DigestError::InvalidArgumentError(offset))?,
+    );
+    offset += 8;
+    let mut transactions = Vec::new();
+    for _i in 0..num_transactions {
+        let (tx_ref, new_offset) = read_one_transaction(sbm, offset)?;
+        let deserialized_transaction_result = GDEXSignedTransaction::deserialize(tx_ref.to_vec());
+        match deserialized_transaction_result {
+            Ok(transaction) => {
+                transactions.push(transaction);
+            }
+            Err(_) => return Err(DigestError::DeserializationError()),
+        }
+
+        offset = new_offset;
+    }
+    Ok(transactions)
 }
