@@ -33,6 +33,8 @@ fn test_primary_no_consensus() {
             &keys_file_path,
             "--store",
             &db_path,
+            "--execution",
+            "simple",
             "primary",
             "--consensus-disabled",
         ])
@@ -83,6 +85,8 @@ fn test_primary_with_consensus() {
             &keys_file_path,
             "--store",
             &db_path,
+            "--execution",
+            "simple",
             "primary",
             //no arg : default of with_consensus
         ])
