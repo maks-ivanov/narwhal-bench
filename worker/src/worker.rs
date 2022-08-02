@@ -26,8 +26,9 @@ use tracing::info;
 use types::{
     error::DagError, BatchDigest, BincodeEncodedPayload, ClientBatchRequest, Empty,
     GDEXSignedTransaction, PrimaryToWorker, PrimaryToWorkerServer, ReconfigureNotification,
-    SerializedBatchMessage, Transaction, TransactionProto, Transactions, TransactionsServer,
-    WorkerPrimaryMessage, WorkerToWorker, WorkerToWorkerServer, SERIALIZED_TRANSACTION_LENGTH,
+    SerializedBatchMessage, SignedTransactionError, Transaction, TransactionProto, Transactions,
+    TransactionsServer, WorkerPrimaryMessage, WorkerToWorker, WorkerToWorkerServer,
+    SERIALIZED_TRANSACTION_LENGTH,
 };
 
 #[cfg(test)]
@@ -329,29 +330,23 @@ impl TxReceiverHandler {
         })
     }
 
-    fn verify_incoming_transaction(
-        serialized_transaction: Vec<u8>,
-    ) -> Result<(), tonic::Status> {
+    fn verify_incoming_transaction(serialized_transaction: Vec<u8>) -> Result<(), tonic::Status> {
         // remove trailing zeros & deserialize transaction
-        let signed_transaction_result = GDEXSignedTransaction::deserialize(serialized_transaction);
-
+        let signed_transaction_result =
+            GDEXSignedTransaction::deserialize_and_verify(serialized_transaction);
         match signed_transaction_result {
-            Ok(signed_transaction) => {
-                match signed_transaction.verify_transaction() {
-                    Ok(_) => {
-                        // transaction was successfully deserialized and the signature matched the payload
-                        Ok(())
-                    }
-                    // deserialization succeeded, but verification failed
-                    Err(_sig_error) => Err(tonic::Status::unauthenticated(
-                        "Failed to verify the transaction signature",
-                    )),
-                }
+            Ok(_) => {
+                // transaction was successfully deserialized and the signature matched the payload
+                Ok(())
             }
-            // deserialization failed
-            Err(_derserialize_err) => Err(tonic::Status::invalid_argument(
-                "Failed to deserialize the transaction",
-            )),
+            // deserialization succeeded, but verification failed
+            Err(SignedTransactionError::FailedVerification(_sig_error)) => Err(
+                tonic::Status::unauthenticated("Failed to verify the transaction signature"),
+            ),
+            Err(SignedTransactionError::Deserialization(_deserialize_error)) => Err(
+                tonic::Status::invalid_argument("Failed to deserialize the transaction signature"),
+            ),
+            _ => Err(tonic::Status::cancelled("an unexpected error occurred")),
         }
     }
 }
