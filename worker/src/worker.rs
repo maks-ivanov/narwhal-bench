@@ -291,7 +291,7 @@ impl<PublicKey: VerifyingKey> Worker<PublicKey> {
 
 /// Defines how the network receiver handles incoming transactions.
 #[derive(Clone)]
-pub struct TxReceiverHandler {
+struct TxReceiverHandler {
     tx_batch_maker: Sender<Transaction>,
 }
 
@@ -329,7 +329,7 @@ impl TxReceiverHandler {
         })
     }
 
-    pub fn verify_incoming_transaction(
+    fn verify_incoming_transaction(
         serialized_transaction: Vec<u8>,
     ) -> Result<(), tonic::Status> {
         // remove trailing zeros & deserialize transaction
