@@ -64,7 +64,7 @@ impl BatchDigest {
     }
 
     pub fn get_array(&self) -> [u8; DIGEST_LEN] {
-        return self.0;
+        self.0
     }
 }
 
