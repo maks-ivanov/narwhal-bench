@@ -66,10 +66,9 @@ fn criterion_benchmark(c: &mut Criterion) {
             dummy_batch_digest,
             transaction_variant,
         );
-        let transaction_digest = transaction.digest();
 
         // generate the signed digest for repeated use
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&(transaction.digest().get_array())[..]);
 
         GDEXSignedTransaction::new(
             kp_sender.public().clone(),
