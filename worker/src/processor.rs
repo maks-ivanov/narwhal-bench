@@ -11,7 +11,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::{error, info};
+use tracing::{error};
 use types::{
     error::DagError, serialized_batch_digest, Batch, BatchDigest, GDEXSignedTransaction,
     ReconfigureNotification, SerializedBatchMessage, WorkerMessage, WorkerPrimaryMessage,
