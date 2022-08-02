@@ -103,18 +103,16 @@ impl ExecutionState for AdvancedExecutionState {
     ) -> Result<(Self::Outcome, Option<Committee<PublicKey>>), Self::Error> {
         let transaction = signed_transaction.get_transaction_payload();
         let execution = match transaction.get_variant() {
-            TransactionVariant::PaymentTransaction(_payment) => {
+            TransactionVariant::PaymentTransaction(payment) => {
                 self.store
                     .write(Self::INDICES_ADDRESS, execution_indices)
                     .await;
-                // FOR NOW WE DO NOT PROCESS THE TRANSACTINO AS THIS APPEARS TO BREAK THE NETWORK
-                // self.bank_controller.lock().unwrap().transfer(
-                //     transaction.get_sender(),
-                //     payment.get_receiver(),
-                //     payment.get_asset_id(),
-                //     payment.get_amount(),
-                // )
-                Ok(())
+                self.bank_controller.lock().unwrap().transfer(
+                    transaction.get_sender(),
+                    payment.get_receiver(),
+                    payment.get_asset_id(),
+                    payment.get_amount(),
+                )
             }
             TransactionVariant::CreateAssetTransaction(_create_asset) => self
                 .bank_controller
@@ -155,10 +153,10 @@ impl AdvancedExecutionState {
         let rocksdb = open_cf(store_path, None, &[STATE_CF]).unwrap();
         let map = reopen!(&rocksdb, STATE_CF;<u64, ExecutionIndices>);
         let bank_controller: Mutex<BankController> = Mutex::new(BankController::default());
-        // let primary_manager = keys([0; 32]).pop().unwrap();
-        let seed = [0; 32];
-        let mut rng = StdRng::from_seed(seed);
-        let primary_manager = AccountKeyPair::generate(&mut rng);
+
+        let mut rng = StdRng::from_seed([0; 32]);
+        let mut keys: Vec<AccountKeyPair> = (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect();
+        let primary_manager = keys.pop().unwrap();
 
         bank_controller
             .lock()
