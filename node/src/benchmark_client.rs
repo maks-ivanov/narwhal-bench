@@ -176,6 +176,8 @@ impl Client {
             let now = Instant::now();
 
             // generate the keypairs
+            // note that seed [0; 32] is also fed into the Executor where the BankController state is initiated
+            // this means that as long as this keypair is the sender on all transactions there will sufficient balance
             let kp_sender = keys([0; 32]).pop().unwrap();
             let kp_receiver = keys([1; 32]).pop().unwrap();
 
