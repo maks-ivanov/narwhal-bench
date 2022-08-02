@@ -33,9 +33,9 @@ fn create_signed_padded_transaction(
     kp_receiver: &AccountKeyPair,
     amount: u64,
     transmission_size: usize,
-    do_real_transaction: bool,
+    is_advanced_execution: bool,
 ) -> Vec<u8> {
-    if do_real_transaction {
+    if is_advanced_execution {
         // use a dummy batch digest for initial benchmarking
         let dummy_batch_digest = BatchDigest::new([0; DIGEST_LEN]);
 
@@ -83,6 +83,7 @@ async fn main() -> Result<()> {
         .args_from_usage("<ADDR> 'The network address of the node where to send txs'")
         .args_from_usage("--size=<INT> 'The size of each transaction in bytes'")
         .args_from_usage("--rate=<INT> 'The rate (txs/s) at which to send the transactions'")
+        .args_from_usage("--execution=<EXECUTION> 'The rate (txs/s) at which to send the transactions'")
         .args_from_usage("--nodes=[ADDR]... 'Network addresses that must be reachable before starting the benchmark.'")
         .setting(AppSettings::ArgRequiredElseHelp)
         .get_matches();
@@ -124,6 +125,8 @@ async fn main() -> Result<()> {
         .map(|x| x.parse::<Url>())
         .collect::<Result<Vec<_>, _>>()
         .with_context(|| format!("Invalid url format {target_str}"))?;
+    let is_advanced_execution: bool =
+        matches.value_of("execution").unwrap_or("advanced") == "advanced";
 
     info!("Node address: {target}");
 
@@ -138,6 +141,7 @@ async fn main() -> Result<()> {
         size,
         rate,
         nodes,
+        is_advanced_execution
     };
 
     // Wait for all nodes to be online and synchronized.
@@ -153,6 +157,7 @@ struct Client {
     size: usize,
     rate: u64,
     nodes: Vec<Url>,
+    is_advanced_execution: bool,
 }
 
 impl Client {
@@ -194,6 +199,7 @@ impl Client {
 
             // copy into a new variablet o avoid we get lifetime errors in the stream
             let size = self.size;
+            let is_advanced_execution = self.is_advanced_execution;
 
             let stream = tokio_stream::iter(0..burst).map(move |x| {
                 let amount = if x == counter % burst {
@@ -210,7 +216,7 @@ impl Client {
                     &kp_receiver,
                     amount,
                     /* transmission_size */ size,
-                    /* do_real_transaction */ true,
+                    /* is_advanced_execution */ is_advanced_execution,
                 );
 
                 TransactionProto {

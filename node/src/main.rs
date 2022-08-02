@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
                 .args_from_usage("--committee=<FILE> 'The file containing committee information'")
                 .args_from_usage("--parameters=[FILE] 'The file containing the node parameters'")
                 .args_from_usage("--store=<PATH> 'The path where to create the data store'")
-                .args_from_usage("--advanced_execution=<BOOL> 'Use advanced execution?'")
+                .args_from_usage("--execution=<EXECUTION> 'The execution engine used in test'")
                 .subcommand(SubCommand::with_name("primary")
                     .about("Run a single primary")
                     .args_from_usage("-d, --consensus-disabled 'Provide this flag to run a primary node without Tusk'")
@@ -132,7 +132,6 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     let committee_file = matches.value_of("committee").unwrap();
     let parameters_file = matches.value_of("parameters");
     let store_path = matches.value_of("store").unwrap();
-    // default execution to advanced, if passed with flag "simple" then simple execution proceeds
     let is_advanced_execution: bool =
         matches.value_of("execution").unwrap_or("advanced") == "advanced";
 
