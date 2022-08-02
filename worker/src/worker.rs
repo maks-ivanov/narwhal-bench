@@ -291,7 +291,7 @@ impl<PublicKey: VerifyingKey> Worker<PublicKey> {
 
 /// Defines how the network receiver handles incoming transactions.
 #[derive(Clone)]
-struct TxReceiverHandler {
+pub struct TxReceiverHandler {
     tx_batch_maker: Sender<Transaction>,
 }
 
@@ -329,7 +329,9 @@ impl TxReceiverHandler {
         })
     }
 
-    fn verify_incoming_transaction(serialized_transaction: Vec<u8>) -> Result<(), tonic::Status> {
+    pub fn verify_incoming_transaction(
+        serialized_transaction: Vec<u8>,
+    ) -> Result<(), tonic::Status> {
         // remove trailing zeros & deserialize transaction
         let signed_transaction_result = GDEXSignedTransaction::deserialize(serialized_transaction);
 
@@ -361,6 +363,12 @@ impl Transactions for TxReceiverHandler {
         request: Request<TransactionProto>,
     ) -> Result<Response<Empty>, Status> {
         let message = request.into_inner().transaction;
+        let serialized_transaction = message
+            .to_vec()
+            .drain(..SERIALIZED_TRANSACTION_LENGTH)
+            .collect();
+        TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+
         // Send the transaction to the batch maker.
         self.tx_batch_maker
             .send(message.to_vec())
