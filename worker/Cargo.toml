@@ -42,3 +42,4 @@ test_utils = { path = "../test_utils" }
 
 [features]
 benchmark = []
+testing = []
