@@ -155,7 +155,8 @@ impl AdvancedExecutionState {
         let bank_controller: Mutex<BankController> = Mutex::new(BankController::default());
 
         let mut rng = StdRng::from_seed([0; 32]);
-        let mut keys: Vec<AccountKeyPair> = (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect();
+        let mut keys: Vec<AccountKeyPair> =
+            (0..4).map(|_| AccountKeyPair::generate(&mut rng)).collect();
         let primary_manager = keys.pop().unwrap();
 
         bank_controller

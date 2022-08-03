@@ -180,7 +180,9 @@ impl Client {
         // Submit all transactions.
         let burst = self.rate / PRECISION;
         let mut counter = 0;
-        let mut r = rand::thread_rng().gen_range(100_000, 200_000);
+        // select a number from a range that is gaurenteed to be larger than the size of transactions submitted
+        // but, not so large that we can exhaust the primary senders balance
+        let mut r = rand::thread_rng().gen_range(self.size, 2 * self.size);
         let interval = interval(Duration::from_millis(BURST_DURATION));
         tokio::pin!(interval);
 

@@ -11,7 +11,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::{error};
+use tracing::error;
 use types::{
     error::DagError, serialized_batch_digest, Batch, BatchDigest, GDEXSignedTransaction,
     ReconfigureNotification, SerializedBatchMessage, WorkerMessage, WorkerPrimaryMessage,
@@ -64,16 +64,6 @@ impl Processor {
                             // TODO - error handle instead of panic
                             _ => panic!("A transaction failed the pipeline"),
                         };
-
-                        // Check that we are able to correctly deserialize the batch
-                        // this is deserialization method two, leveraging a newly defined deserialize batch
-                        // let deserialized_batch = deserialize_batch(&batch);
-                        // match deserialized_batch {
-                        //     Ok(_) => {}
-                        //     Err(error) => {
-                        //         error!("Received invalid batch, serialization failure: {error}");
-                        //     }
-                        // }
 
                         // Hash the batch.
                         let res_digest = serialized_batch_digest(&batch);
