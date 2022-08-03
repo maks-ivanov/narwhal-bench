@@ -6,7 +6,7 @@ use crypto::traits::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Batch, BatchDigest, GDEXSignedTransaction};
+use crate::{Batch, BatchDigest};
 
 /// The message exchanged between workers.
 #[derive(Debug, Serialize, Deserialize)]
