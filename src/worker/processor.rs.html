@@ -83,10 +83,35 @@
 <span id="83">83</span>
 <span id="84">84</span>
 <span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates</span>
 <span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.</span>
 <span class="comment">// SPDX-License-Identifier: Apache-2.0</span>
-
 <span class="kw">use</span> <span class="ident">config::WorkerId</span>;
 <span class="kw">use</span> <span class="ident">crypto::traits::VerifyingKey</span>;
 <span class="kw">use</span> <span class="ident">store::Store</span>;
@@ -99,8 +124,9 @@
 };
 <span class="kw">use</span> <span class="ident">tracing::error</span>;
 <span class="kw">use</span> <span class="ident">types</span>::{
-    <span class="ident">error::DagError</span>, <span class="ident">serialized_batch_digest</span>, <span class="ident">BatchDigest</span>, <span class="ident">ReconfigureNotification</span>,
-    <span class="ident">SerializedBatchMessage</span>, <span class="ident">WorkerPrimaryMessage</span>,
+    <span class="ident">error::DagError</span>, <span class="ident">serialized_batch_digest</span>, <span class="ident">Batch</span>, <span class="ident">BatchDigest</span>, <span class="ident">GDEXSignedTransaction</span>,
+    <span class="ident">ReconfigureNotification</span>, <span class="ident">SerializedBatchMessage</span>, <span class="ident">WorkerMessage</span>, <span class="ident">WorkerPrimaryMessage</span>,
+    <span class="ident">SERIALIZED_TRANSACTION_LENGTH</span>,
 };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -129,6 +155,32 @@
             <span class="kw">loop</span> {
                 <span class="macro">tokio::select!</span> {
                     <span class="prelude-val">Some</span>(<span class="ident">batch</span>) <span class="op">=</span> <span class="ident">rx_batch</span>.<span class="ident">recv</span>() =&gt; {
+                        <span class="comment">// TODO - note how redundant it is to deserialize and calc the batch separately, this needs to be unified</span>
+
+                        <span class="comment">// let types::WorkerMessage::&lt;PublicKey&gt;::Batch(deserialized_batch) = bincode::deserialize(&amp;batch.to_vec()).unwrap();</span>
+
+                        <span class="comment">// Check that we are able to correctly deserialize the batch</span>
+                        <span class="comment">// this is deserialization method one and matches patterns observed throughout Narwhal</span>
+                        <span class="comment">// Note, for now we do not verify transactions, but this can be tested by uncommenting the line below</span>
+                        <span class="kw">if</span> <span class="op">!</span><span class="macro">cfg!</span>(<span class="ident">any</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;testing&quot;</span>)) {
+                            <span class="kw">match</span> <span class="ident">bincode::deserialize</span>(<span class="kw-2">&amp;</span><span class="ident">batch</span>).<span class="ident">unwrap</span>() {
+                                <span class="ident">WorkerMessage</span>::<span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span><span class="ident">::Batch</span>(<span class="ident">Batch</span>(<span class="ident">transactions</span>)) =&gt; {
+                                    <span class="kw">for</span> <span class="ident">transaction_padded</span> <span class="kw">in</span> <span class="ident">transactions</span> {
+                                        <span class="macro">println!</span>(<span class="string">&quot;deserializing a batch txn..&quot;</span>);
+                                        <span class="macro">println!</span>(<span class="string">&quot;cfg!(test)={}&quot;</span>, <span class="macro">cfg!</span>(<span class="ident">test</span>));
+                                        <span class="macro">println!</span>(<span class="string">&quot;cfg!(any(test, feature = testing))={}&quot;</span>, <span class="macro">cfg!</span>(<span class="ident">any</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;testing&quot;</span>)));
+                                        <span class="kw">let</span> <span class="ident">serialized_transaction</span> <span class="op">=</span> <span class="ident">transaction_padded</span>.<span class="ident">to_vec</span>()
+                                                                                .<span class="ident">drain</span>(..<span class="ident">SERIALIZED_TRANSACTION_LENGTH</span>)
+                                                                                .<span class="ident">collect</span>();
+                                        <span class="comment">// TOOD - do not unwrap here...</span>
+                                        <span class="kw">let</span> <span class="ident">_verified_transaction</span> <span class="op">=</span> <span class="ident">GDEXSignedTransaction::deserialize_and_verify</span>(<span class="ident">serialized_transaction</span>).<span class="ident">unwrap</span>();
+                                    }
+                                },
+                                <span class="comment">// TODO - error handle instead of panic</span>
+                                <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;A transaction failed the pipeline&quot;</span>),
+                            };
+                        }
+
                         <span class="comment">// Hash the batch.</span>
                         <span class="kw">let</span> <span class="ident">res_digest</span> <span class="op">=</span> <span class="ident">serialized_batch_digest</span>(<span class="kw-2">&amp;</span><span class="ident">batch</span>);
 
@@ -169,4 +221,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="worker" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (f9cba6374 2022-07-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="worker" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (4493a0f47 2022-08-02)" ></div></body></html>

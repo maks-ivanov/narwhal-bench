@@ -666,6 +666,10 @@
 <span id="666">666</span>
 <span id="667">667</span>
 <span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates</span>
 <span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.</span>
 <span class="comment">// SPDX-License-Identifier: Apache-2.0</span>
@@ -729,6 +733,10 @@
 <span class="kw">impl</span> <span class="ident">BatchDigest</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: [<span class="ident">u8</span>; <span class="ident">DIGEST_LEN</span>]) -&gt; <span class="ident">BatchDigest</span> {
         <span class="ident">BatchDigest</span>(<span class="ident">val</span>)
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_array</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [<span class="ident">u8</span>; <span class="ident">DIGEST_LEN</span>] {
+        <span class="self">self</span>.<span class="number">0</span>
     }
 }
 
@@ -1335,4 +1343,4 @@
     <span class="ident">ErrorWhileDeletingBatches</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BatchDigest</span><span class="op">&gt;</span>),
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="types" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (f9cba6374 2022-07-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="types" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (4493a0f47 2022-08-02)" ></div></body></html>
