@@ -4,12 +4,14 @@
 // each valid transaction corresponds to a unique state transition within
 // the space of allowable blockchain transitions
 //
-use crate::{AccountKeyPair, AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
+use crate::{AccountPubKey, AccountSignature, BatchDigest, SignedTransactionError};
 use blake2::{digest::Update, VarBlake2b};
 use crypto::{Digest, Hash, Verifier, DIGEST_LEN};
 use serde::{Deserialize, Serialize};
 use std::{fmt, fmt::Debug};
 type AssetId = u64;
+
+pub const SERIALIZED_TRANSACTION_LENGTH: usize = 280;
 
 /// A valid payment transaction causes a state transition inside of
 /// the BankController object, e.g. it creates a fund transfer from
@@ -107,6 +109,10 @@ impl TransactionDigest {
     pub fn new(val: [u8; DIGEST_LEN]) -> TransactionDigest {
         TransactionDigest(val)
     }
+
+    pub fn get_array(&self) -> [u8; DIGEST_LEN] {
+        self.0
+    }
 }
 
 impl From<TransactionDigest> for Digest {
@@ -126,16 +132,14 @@ impl Hash for GDEXTransaction {
                     hasher.update(payment.get_receiver().0.as_bytes());
                     hasher.update(payment.get_asset_id().to_le_bytes());
                     hasher.update(payment.get_amount().to_le_bytes());
-                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
-                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
             TransactionVariant::CreateAssetTransaction(_create_asset) => {
                 let hasher_update = |hasher: &mut VarBlake2b| {
                     hasher.update(self.get_sender().0.to_bytes());
-                    // TODO - can we avoid turning into a string first? Also, as_bytes implements a copy
-                    hasher.update(self.get_recent_batch_digest().to_string().as_bytes());
+                    hasher.update(&self.get_recent_batch_digest().get_array()[..]);
                 };
                 TransactionDigest(crypto::blake2b_256(hasher_update))
             }
@@ -173,6 +177,12 @@ impl GDEXSignedTransaction {
         }
     }
 
+    pub fn deserialize_and_verify(byte_vec: Vec<u8>) -> Result<Self, SignedTransactionError> {
+        let deserialized_transaction = Self::deserialize(byte_vec)?;
+        deserialized_transaction.verify()?;
+        Ok(deserialized_transaction)
+    }
+
     pub fn serialize(&self) -> Result<Vec<u8>, SignedTransactionError> {
         match bincode::serialize(&self) {
             Ok(result) => Ok(result),
@@ -188,13 +198,13 @@ impl GDEXSignedTransaction {
         &self.transaction_signature
     }
 
-    pub fn verify_transaction(&self) -> Result<(), SignedTransactionError> {
-        let transaction_digest = self.transaction_payload.digest();
-
-        match self.transaction_payload.get_sender().verify(
-            transaction_digest.to_string().as_bytes(),
-            &self.transaction_signature,
-        ) {
+    pub fn verify(&self) -> Result<(), SignedTransactionError> {
+        let transaction_digest_array = self.transaction_payload.digest().get_array();
+        match self
+            .transaction_payload
+            .get_sender()
+            .verify(&transaction_digest_array[..], &self.transaction_signature)
+        {
             Ok(_) => Ok(()),
             Err(err) => Err(SignedTransactionError::FailedVerification(err)),
         }
@@ -206,8 +216,8 @@ impl GDEXSignedTransaction {
 pub mod transaction_tests {
     use super::*;
 
-    use crypto::traits::KeyPair;
-    use crypto::traits::Signer;
+    use crate::AccountKeyPair;
+    use crypto::traits::{KeyPair, Signer};
     use rand::{rngs::StdRng, SeedableRng};
 
     const PRIMARY_ASSET_ID: u64 = 0;
@@ -234,8 +244,7 @@ pub mod transaction_tests {
             transaction_variant,
         );
 
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest)
     }
@@ -265,7 +274,7 @@ pub mod transaction_tests {
 
         let signed_transaction =
             GDEXSignedTransaction::new(kp_sender.public().clone(), transaction, signed_digest);
-        let verify_result = signed_transaction.verify_transaction();
+        let verify_result = signed_transaction.verify();
 
         // check that verification fails
         match verify_result {
@@ -286,12 +295,12 @@ pub mod transaction_tests {
         let kp_receiver = keys([1; 32]).pop().unwrap();
         let signed_transaction = generate_signed_payment_transaction(&kp_sender, &kp_receiver);
         let transaction = signed_transaction.get_transaction_payload();
-        let signed_digest = kp_sender.sign(transaction.digest().to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         // perform transaction checks
 
         // check valid signature
-        signed_transaction.verify_transaction().unwrap();
+        signed_transaction.verify().unwrap();
 
         // verify deterministic hashing
         let transaction_hash_0 = transaction.digest();
@@ -359,8 +368,7 @@ pub mod transaction_tests {
             dummy_batch_digest,
             transaction_variant,
         );
-        let transaction_digest = transaction.digest();
-        let signed_digest = kp_sender.sign(transaction_digest.to_string().as_bytes());
+        let signed_digest = kp_sender.sign(&transaction.digest().get_array()[..]);
 
         let signed_transaction = GDEXSignedTransaction::new(
             kp_sender.public().clone(),
@@ -369,7 +377,7 @@ pub mod transaction_tests {
         );
 
         // check valid signature
-        signed_transaction.verify_transaction().unwrap();
+        signed_transaction.verify().unwrap();
 
         // check we can unpack transaction as expected
         let _create_asset = match signed_transaction.get_transaction_payload().get_variant() {

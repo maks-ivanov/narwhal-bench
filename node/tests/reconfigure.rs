@@ -165,6 +165,7 @@ async fn run_client<PublicKey: VerifyingKey>(
     }
 }
 
+#[cfg(any(test, feature = "testing"))]
 #[tokio::test]
 async fn restart() {
     let committee = committee(None);
@@ -244,6 +245,7 @@ async fn restart() {
     join_all(handles).await;
 }
 
+#[cfg(any(test, feature = "testing"))]
 #[tokio::test]
 async fn epoch_change() {
     let committee = committee(None);

@@ -25,9 +25,10 @@ use tonic::{Request, Response, Status};
 use tracing::info;
 use types::{
     error::DagError, BatchDigest, BincodeEncodedPayload, ClientBatchRequest, Empty,
-    PrimaryToWorker, PrimaryToWorkerServer, ReconfigureNotification, SerializedBatchMessage,
-    Transaction, TransactionProto, Transactions, TransactionsServer, WorkerPrimaryMessage,
-    WorkerToWorker, WorkerToWorkerServer,
+    GDEXSignedTransaction, PrimaryToWorker, PrimaryToWorkerServer, ReconfigureNotification,
+    SerializedBatchMessage, SignedTransactionError, Transaction, TransactionProto, Transactions,
+    TransactionsServer, WorkerPrimaryMessage, WorkerToWorker, WorkerToWorkerServer,
+    SERIALIZED_TRANSACTION_LENGTH,
 };
 
 #[cfg(test)]
@@ -328,6 +329,26 @@ impl TxReceiverHandler {
             }
         })
     }
+
+    fn verify_incoming_transaction(serialized_transaction: Vec<u8>) -> Result<(), tonic::Status> {
+        // remove trailing zeros & deserialize transaction
+        let signed_transaction_result =
+            GDEXSignedTransaction::deserialize_and_verify(serialized_transaction);
+        match signed_transaction_result {
+            Ok(_) => {
+                // transaction was successfully deserialized and the signature matched the payload
+                Ok(())
+            }
+            // deserialization succeeded, but verification failed
+            Err(SignedTransactionError::FailedVerification(_sig_error)) => Err(
+                tonic::Status::unauthenticated("Failed to verify the transaction signature"),
+            ),
+            Err(SignedTransactionError::Deserialization(_deserialize_error)) => Err(
+                tonic::Status::invalid_argument("Failed to deserialize the transaction signature"),
+            ),
+            _ => Err(tonic::Status::cancelled("an unexpected error occurred")),
+        }
+    }
 }
 
 #[async_trait]
@@ -337,6 +358,14 @@ impl Transactions for TxReceiverHandler {
         request: Request<TransactionProto>,
     ) -> Result<Response<Empty>, Status> {
         let message = request.into_inner().transaction;
+        if !cfg!(any(test, feature = "testing")) {
+            let serialized_transaction = message
+                .to_vec()
+                .drain(..SERIALIZED_TRANSACTION_LENGTH)
+                .collect();
+
+            TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+        }
         // Send the transaction to the batch maker.
         self.tx_batch_maker
             .send(message.to_vec())
@@ -354,6 +383,15 @@ impl Transactions for TxReceiverHandler {
         let mut transactions = request.into_inner();
 
         while let Some(Ok(txn)) = transactions.next().await {
+            if !cfg!(any(test, feature = "testing")) {
+                // remove the trailing zeros from the incoming transaction
+                let serialized_transaction = txn
+                    .transaction
+                    .to_vec()
+                    .drain(..SERIALIZED_TRANSACTION_LENGTH)
+                    .collect();
+                TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+            }
             // Send the transaction to the batch maker.
             self.tx_batch_maker
                 .send(txn.transaction.to_vec())

@@ -2306,12 +2306,14 @@ dependencies = [
  "network",
  "pretty_assertions",
  "primary",
+ "proc",
  "prometheus",
  "rand 0.7.3",
  "serde-reflection",
  "serde_yaml",
  "structopt",
  "telemetry-subscribers",
+ "tempfile",
  "test_utils",
  "thiserror",
  "tokio",
@@ -3673,6 +3675,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 name = "suite"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "criterion",
  "crypto",
  "proc",

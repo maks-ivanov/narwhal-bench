@@ -19,7 +19,7 @@ def local(ctx, debug=True):
         'faults': 0,
         'nodes': 4,
         'workers': 1,
-        'rate': 50_000,
+        'rate': 10_000,
         'tx_size': 512,
         'duration': 20,
         'mem_profiling': False
@@ -46,7 +46,8 @@ def local(ctx, debug=True):
         'max_concurrent_requests': 500_000,
         'prometheus_metrics': {
             "socket_addr": "127.0.0.1:0"
-        }
+        },
+        'execution': 'advanced',
     }
     try:
         ret = LocalBench(bench_params, node_params).run(debug)
@@ -88,7 +89,8 @@ def demo(ctx, debug=True):
         "sync_retry_nodes": 3,  # number of nodes
         'prometheus_metrics': {
             "socket_addr": "127.0.0.1:0"
-        }
+        },
+        'execution': 'advanced',
     }
     try:
         ret = Demo(bench_params, node_params).run(debug)
@@ -202,7 +204,8 @@ def remote(ctx, debug=False):
         'max_concurrent_requests': 500_000,
         'prometheus_metrics': {
             "socket_addr": "127.0.0.1:0"
-        }
+        },
+        'execution': 'advanced',
     }
     try:
         Bench(ctx).run(bench_params, node_params, debug)

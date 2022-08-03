@@ -59,6 +59,8 @@ pub fn serialized_batch_digest<K: AsRef<[u8]>>(sbm: K) -> Result<BatchDigest, Di
 pub enum DigestError {
     #[error("Invalid argument: invalid byte at {0}")]
     InvalidArgumentError(usize),
+    #[error("Transaction failed deserialize")]
+    DeserializationError(),
 }
 
 fn read_one_transaction(sbm: &[u8], offset: usize) -> Result<(&[u8], usize), DigestError> {
