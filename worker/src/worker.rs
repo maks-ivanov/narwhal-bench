@@ -358,12 +358,14 @@ impl Transactions for TxReceiverHandler {
         request: Request<TransactionProto>,
     ) -> Result<Response<Empty>, Status> {
         let message = request.into_inner().transaction;
-        let serialized_transaction = message
-            .to_vec()
-            .drain(..SERIALIZED_TRANSACTION_LENGTH)
-            .collect();
-        TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+        if !cfg!(any(test, feature = "testing")) {
+            let serialized_transaction = message
+                .to_vec()
+                .drain(..SERIALIZED_TRANSACTION_LENGTH)
+                .collect();
 
+            TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+        }
         // Send the transaction to the batch maker.
         self.tx_batch_maker
             .send(message.to_vec())
@@ -381,14 +383,15 @@ impl Transactions for TxReceiverHandler {
         let mut transactions = request.into_inner();
 
         while let Some(Ok(txn)) = transactions.next().await {
-            // remove the trailing zeros from the incoming transaction
-            let serialized_transaction = txn
-                .transaction
-                .to_vec()
-                .drain(..SERIALIZED_TRANSACTION_LENGTH)
-                .collect();
-            TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
-
+            if !cfg!(any(test, feature = "testing")) {
+                // remove the trailing zeros from the incoming transaction
+                let serialized_transaction = txn
+                    .transaction
+                    .to_vec()
+                    .drain(..SERIALIZED_TRANSACTION_LENGTH)
+                    .collect();
+                TxReceiverHandler::verify_incoming_transaction(serialized_transaction)?;
+            }
             // Send the transaction to the batch maker.
             self.tx_batch_maker
                 .send(txn.transaction.to_vec())

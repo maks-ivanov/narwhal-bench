@@ -51,19 +51,24 @@ impl Processor {
                         // Check that we are able to correctly deserialize the batch
                         // this is deserialization method one and matches patterns observed throughout Narwhal
                         // Note, for now we do not verify transactions, but this can be tested by uncommenting the line below
-                        match bincode::deserialize(&batch).unwrap() {
-                            WorkerMessage::<PublicKey>::Batch(Batch(transactions)) => {
-                                for transaction_padded in transactions {
-                                    let serialized_transaction = transaction_padded.to_vec()
-                                                                            .drain(..SERIALIZED_TRANSACTION_LENGTH)
-                                                                            .collect();
-                                    // TOOD - do not unwrap here...
-                                    let _verified_transaction = GDEXSignedTransaction::deserialize_and_verify(serialized_transaction).unwrap();
-                                }
-                            },
-                            // TODO - error handle instead of panic
-                            _ => panic!("A transaction failed the pipeline"),
-                        };
+                        if !cfg!(any(test, feature = "testing")) {
+                            match bincode::deserialize(&batch).unwrap() {
+                                WorkerMessage::<PublicKey>::Batch(Batch(transactions)) => {
+                                    for transaction_padded in transactions {
+                                        println!("deserializing a batch txn..");
+                                        println!("cfg!(test)={}", cfg!(test));
+                                        println!("cfg!(any(test, feature = testing))={}", cfg!(any(test, feature = "testing")));
+                                        let serialized_transaction = transaction_padded.to_vec()
+                                                                                .drain(..SERIALIZED_TRANSACTION_LENGTH)
+                                                                                .collect();
+                                        // TOOD - do not unwrap here...
+                                        let _verified_transaction = GDEXSignedTransaction::deserialize_and_verify(serialized_transaction).unwrap();
+                                    }
+                                },
+                                // TODO - error handle instead of panic
+                                _ => panic!("A transaction failed the pipeline"),
+                            };
+                        }
 
                         // Hash the batch.
                         let res_digest = serialized_batch_digest(&batch);

@@ -34,7 +34,7 @@ fn test_primary_no_consensus() {
             "--store",
             &db_path,
             "--execution",
-            "advanced",
+            "simple",
             "primary",
             "--consensus-disabled",
         ])
