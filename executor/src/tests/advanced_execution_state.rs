@@ -66,9 +66,9 @@ impl ExecutionState for AdvancedTestState {
         let transaction = signed_transaction.get_transaction_payload();
         let execution = match transaction.get_variant() {
             TransactionVariant::PaymentTransaction(payment) => {
-                self.store
-                    .write(Self::INDICES_ADDRESS, execution_indices)
-                    .await;
+                // self.store
+                //     .write(Self::INDICES_ADDRESS, execution_indices)
+                //     .await;
                 self.bank_controller.lock().unwrap().transfer(
                     transaction.get_sender(),
                     payment.get_receiver(),
