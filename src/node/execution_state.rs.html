@@ -305,9 +305,9 @@
         <span class="kw">let</span> <span class="ident">transaction</span> <span class="op">=</span> <span class="ident">signed_transaction</span>.<span class="ident">get_transaction_payload</span>();
         <span class="kw">let</span> <span class="ident">execution</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">transaction</span>.<span class="ident">get_variant</span>() {
             <span class="ident">TransactionVariant::PaymentTransaction</span>(<span class="ident">payment</span>) =&gt; {
-                <span class="self">self</span>.<span class="ident">store</span>
-                    .<span class="ident">write</span>(<span class="ident"><span class="self">Self</span>::INDICES_ADDRESS</span>, <span class="ident">execution_indices</span>)
-                    .<span class="kw">await</span>;
+                <span class="comment">// self.store</span>
+                <span class="comment">//     .write(Self::INDICES_ADDRESS, execution_indices)</span>
+                <span class="comment">//     .await;</span>
                 <span class="self">self</span>.<span class="ident">bank_controller</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>().<span class="ident">transfer</span>(
                     <span class="ident">transaction</span>.<span class="ident">get_sender</span>(),
                     <span class="ident">payment</span>.<span class="ident">get_receiver</span>(),
