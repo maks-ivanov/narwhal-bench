@@ -115,17 +115,16 @@ class Committee:
             names = list(self.json['authorities'].keys())
         else:
             names = [name]
-
         ips = set()
         for name in names:
             addresses = self.json['authorities'][name]['primary']
-            ips.add(self.ip(addresses['primary_to_primary']))
-            ips.add(self.ip(addresses['worker_to_primary']))
+            ips.add(self.ip_from_multi_address(addresses['primary_to_primary']))
+            ips.add(self.ip_from_multi_address(addresses['worker_to_primary']))
 
             for worker in self.json['authorities'][name]['workers'].values():
-                ips.add(self.ip(worker['primary_to_worker']))
-                ips.add(self.ip(worker['worker_to_worker']))
-                ips.add(self.ip(worker['transactions']))
+                ips.add(self.ip_from_multi_address(worker['primary_to_worker']))
+                ips.add(self.ip_from_multi_address(worker['worker_to_worker']))
+                ips.add(self.ip_from_multi_address(worker['transactions']))
 
         return list(ips)
 
@@ -149,10 +148,15 @@ class Committee:
             dump(self.json, f, indent=4, sort_keys=True)
 
     @staticmethod
-    def ip(multi_address):
+    def ip_from_multi_address(multi_address):
         address = multiaddr_to_url_data(multi_address)
         assert isinstance(address, str)
-        return address.split(':')[0]
+        return address.split(':')[1][2:]
+
+    @staticmethod
+    def ip(address):
+        assert isinstance(address, str)
+        return address.split(':')[1][2:]
 
 
 class LocalCommittee(Committee):

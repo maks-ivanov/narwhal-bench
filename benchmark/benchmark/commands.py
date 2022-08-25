@@ -22,7 +22,7 @@ class CommandMaker:
             params = ["--profile", "bench-profiling", "--features", "benchmark dhat-heap"]
         else:
             params = ["--release", "--features", "benchmark"]
-        return ["cargo", "build"] + params
+            return ' '.join(["cargo", "build", "--quiet"] + params)
 
     @staticmethod
     def generate_key(filename):

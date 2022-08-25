@@ -174,18 +174,19 @@ def install(ctx):
 def remote(ctx, debug=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
-        'faults': 3,
-        'nodes': [10],
-        'workers': 1,
+        'faults': 0,
+        'nodes': [4],
+        'workers': 10,
         'collocate': True,
-        'rate': [10_000, 110_000],
+        'rate': [300_000],
         'tx_size': 512,
-        'duration': 300,
-        'runs': 2,
+        'duration': 120,
+        'runs': 1,
+        'mem_profiling': False,
     }
     node_params = {
         'header_size': 1_000,  # bytes
-        'max_header_delay': '200ms',  # ms
+        'max_header_delay': '20ms',  # ms
         'gc_depth': 50,  # rounds
         'sync_retry_delay': '10_000ms',  # ms
         'sync_retry_nodes': 3,  # number of nodes
@@ -202,6 +203,7 @@ def remote(ctx, debug=False):
             "remove_collections_timeout": "5_000ms"
         },
         'max_concurrent_requests': 500_000,
+        "max_batch_delay": "200ms",  # ms
         'prometheus_metrics': {
             "socket_addr": "127.0.0.1:0"
         },
